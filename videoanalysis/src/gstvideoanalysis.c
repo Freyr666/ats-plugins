@@ -216,93 +216,93 @@ gst_videoanalysis_class_init (GstVideoAnalysisClass * klass)
         properties [PROP_BLACK_CONT] =
                 g_param_spec_float("black_cont", "Black cont err boundary",
                                    "Black cont err meas",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., 100.0, 90.0, G_PARAM_READWRITE);
         properties [PROP_BLACK_CONT_EN] =
                 g_param_spec_boolean("black_cont_en", "Black cont err enabled",
-                                     "Enable black cont err meas", FALSE, G_PARAM_READWRITE);
+                                     "Enable black cont err meas", TRUE, G_PARAM_READWRITE);
         properties [PROP_BLACK_PEAK] =
                 g_param_spec_float("black_peak", "Black peak err boundary",
                                    "Black peak err meas",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., 100.0, 100.0, G_PARAM_READWRITE);
         properties [PROP_BLACK_PEAK_EN] =
                 g_param_spec_boolean("black_peak_en", "Black peak err enabled",
                                      "Enable black peak err meas", FALSE, G_PARAM_READWRITE);
         properties [PROP_BLACK_DURATION] =
                 g_param_spec_float("black_duration", "Black duration boundary",
                                    "Black err duration",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., G_MAXFLOAT, 2., G_PARAM_READWRITE);
         properties [PROP_LUMA_CONT] =
                 g_param_spec_float("luma_cont", "Luma cont err boundary",
                                    "Luma cont err meas",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., 256.0, 20.0, G_PARAM_READWRITE);
         properties [PROP_LUMA_CONT_EN] =
                 g_param_spec_boolean("luma_cont_en", "Luma cont err enabled",
-                                     "Enable luma cont err meas", FALSE, G_PARAM_READWRITE);
+                                     "Enable luma cont err meas", TRUE, G_PARAM_READWRITE);
         properties [PROP_LUMA_PEAK] =
                 g_param_spec_float("luma_peak", "Luma peak err boundary",
                                    "Luma peak err meas",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., 256.0, 17.0, G_PARAM_READWRITE);
         properties [PROP_LUMA_PEAK_EN] =
                 g_param_spec_boolean("luma_peak_en", "Luma peak err enabled",
-                                     "Enable luma peak err meas", FALSE, G_PARAM_READWRITE);
+                                     "Enable luma peak err meas", TRUE, G_PARAM_READWRITE);
         properties [PROP_LUMA_DURATION] =
                 g_param_spec_float("luma_duration", "Luma duration boundary",
                                    "Luma err duration",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., G_MAXFLOAT, 2., G_PARAM_READWRITE);
         properties [PROP_FREEZE_CONT] =
                 g_param_spec_float("freeze_cont", "Freeze cont err boundary",
                                    "Freeze cont err meas",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., 100.0, 90., G_PARAM_READWRITE);
         properties [PROP_FREEZE_CONT_EN] =
                 g_param_spec_boolean("freeze_cont_en", "Freeze cont err enabled",
-                                     "Enable freeze cont err meas", FALSE, G_PARAM_READWRITE);
+                                     "Enable freeze cont err meas", TRUE, G_PARAM_READWRITE);
         properties [PROP_FREEZE_PEAK] =
                 g_param_spec_float("freeze_peak", "Freeze peak err boundary",
                                    "Freeze peak err meas",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., 100.0, 100.0, G_PARAM_READWRITE);
         properties [PROP_FREEZE_PEAK_EN] =
                 g_param_spec_boolean("freeze_peak_en", "Freeze peak err enabled",
-                                     "Enable freeze peak err meas", FALSE, G_PARAM_READWRITE);
+                                     "Enable freeze peak err meas", TRUE, G_PARAM_READWRITE);
         properties [PROP_FREEZE_DURATION] =
                 g_param_spec_float("freeze_duration", "Freeze duration boundary",
                                    "Freeze err duration",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., G_MAXFLOAT, 2., G_PARAM_READWRITE);
         properties [PROP_DIFF_CONT] =
                 g_param_spec_float("diff_cont", "Diff cont err boundary",
                                    "Diff cont err meas",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., 256.0, 0.05, G_PARAM_READWRITE);
         properties [PROP_DIFF_CONT_EN] =
                 g_param_spec_boolean("diff_cont_en", "Diff cont err enabled",
-                                     "Enable diff cont err meas", FALSE, G_PARAM_READWRITE);
+                                     "Enable diff cont err meas", TRUE, G_PARAM_READWRITE);
         properties [PROP_DIFF_PEAK] =
                 g_param_spec_float("diff_peak", "Diff peak err boundary",
                                    "Diff peak err meas",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., 265.0, 0.01, G_PARAM_READWRITE);
         properties [PROP_DIFF_PEAK_EN] =
                 g_param_spec_boolean("diff_peak_en", "Diff peak err enabled",
-                                     "Enable diff peak err meas", FALSE, G_PARAM_READWRITE);
+                                     "Enable diff peak err meas", TRUE, G_PARAM_READWRITE);
         properties [PROP_DIFF_DURATION] =
                 g_param_spec_float("diff_duration", "Diff duration boundary",
                                    "Diff err duration",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., G_MAXFLOAT, 2., G_PARAM_READWRITE);
         properties [PROP_BLOCKY_CONT] =
                 g_param_spec_float("blocky_cont", "Blocky cont err boundary",
                                    "Blocky cont err meas",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., 100.0, 10., G_PARAM_READWRITE);
         properties [PROP_BLOCKY_CONT_EN] =
                 g_param_spec_boolean("blocky_cont_en", "Blocky cont err enabled",
-                                     "Enable blocky cont err meas", FALSE, G_PARAM_READWRITE);
+                                     "Enable blocky cont err meas", TRUE, G_PARAM_READWRITE);
         properties [PROP_BLOCKY_PEAK] =
                 g_param_spec_float("blocky_peak", "Blocky peak err boundary",
                                    "Blocky peak err meas",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., 100.0, 15., G_PARAM_READWRITE);
         properties [PROP_BLOCKY_PEAK_EN] =
                 g_param_spec_boolean("blocky_peak_en", "Blocky peak err enabled",
-                                     "Enable blocky peak err meas", FALSE, G_PARAM_READWRITE);
+                                     "Enable blocky peak err meas", TRUE, G_PARAM_READWRITE);
         properties [PROP_BLOCKY_DURATION] =
                 g_param_spec_float("blocky_duration", "Blocky duration boundary",
                                    "Blocky err duration",
-                                   0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
+                                   0., G_MAXFLOAT, 3., G_PARAM_READWRITE);
 
         g_object_class_install_properties(gobject_class, LAST_PROP, properties);
 }
@@ -331,13 +331,33 @@ gst_videoanalysis_init (GstVideoAnalysis *videoanalysis)
         videoanalysis->loss    = 1.;
         videoanalysis->black_pixel_lb = 16;
         videoanalysis->pixel_diff_lb = 0;
+
+        /* TODO cleanup this mess */
         for (guint i = 0; i < PARAM_NUMBER; i++) {
-                videoanalysis->params_boundary[i].cont = 1.;
-                videoanalysis->params_boundary[i].peak = 1.;
-                videoanalysis->params_boundary[i].cont_en = FALSE;
-                videoanalysis->params_boundary[i].peak_en = FALSE;
-                videoanalysis->params_boundary[i].duration = 1.;
+                videoanalysis->params_boundary[i].cont_en = TRUE; /* TODO FALSE */
+                videoanalysis->params_boundary[i].peak_en = TRUE; /* TODO FALSE */
         }
+
+        videoanalysis->params_boundary[BLACK].cont = 90.00;
+        videoanalysis->params_boundary[BLACK].peak = 100.00;
+        videoanalysis->params_boundary[BLACK].duration = 2.00;
+
+        videoanalysis->params_boundary[LUMA].cont = 20.00;
+        videoanalysis->params_boundary[LUMA].peak = 17.00;
+        videoanalysis->params_boundary[LUMA].duration = 2.00;
+
+        videoanalysis->params_boundary[FREEZE].cont = 90.00;
+        videoanalysis->params_boundary[FREEZE].peak = 100.00;
+        videoanalysis->params_boundary[FREEZE].duration = 2.00;
+
+        videoanalysis->params_boundary[DIFF].cont = 0.05;
+        videoanalysis->params_boundary[DIFF].peak = 0.01;
+        videoanalysis->params_boundary[DIFF].duration = 2.00;
+
+        videoanalysis->params_boundary[BLOCKY].cont = 10.00;
+        videoanalysis->params_boundary[BLOCKY].peak = 15.00;
+        videoanalysis->params_boundary[BLOCKY].duration = 3.00;
+
         /* private */
         videoanalysis->frame = 0;
         videoanalysis->frames_in_sec = 25;
@@ -687,7 +707,6 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
         int         width  = videoanalysis->in_info.width;
         float       values [PARAM_NUMBER] = { 0 };
         // GstClockTime time = gst_clock_get_time (GST_ELEMENT_CLOCK(trans));
-
         if (G_UNLIKELY(!gst_pad_is_linked (GST_BASE_TRANSFORM_SRC_PAD(trans))))
                 return GST_FLOW_OK;
 
@@ -695,7 +714,7 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
                                   GST_MAP_READ | GST_MAP_GL)) {
                 goto inbuf_error;
         }
-        
+
         /* map[0] corresponds to the Y component of Yuv */
         tex = gl_frame.map[0].memory;
         if (!gst_is_gl_memory (tex)) {
@@ -718,9 +737,9 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
         values[BLACK] = 100.0 * values[BLACK] / (width * height);
         values[BLOCKY] = 100.0 * values[BLOCKY] / (width * height / 64);
 
-        //g_printf ("Shader Results: [block: %f; luma: %f; black: %f; diff: %f; freeze: %f]\n",
+        //g_print ("Shader Results: [block: %f; luma: %f; black: %f; diff: %f; freeze: %f]\n",
         //          values[BLOCKY], values[LUMA], values[BLACK], values[DIFF], values[FREEZE]);
-
+        //g_print ("Frame: %d Limit: %d\n", videoanalysis->frame, videoanalysis->frame_limit);
         /* Emit data */
         if (videoanalysis->frame >= (videoanalysis->frame_limit - 1)) {
                 // Update timeout clock
@@ -746,9 +765,10 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
         /* errors */
         for (int p = 0; p < PARAM_NUMBER; p++) {
                 float par = values[p];
+                gboolean upper = (p != LUMA) && (p != DIFF);
                 err_flags_cmp(&(videoanalysis->errors[p]),
                               &(videoanalysis->params_boundary[p]),
-                              TRUE,
+                              upper,
                               &(videoanalysis->cont_err_duration[p]),
                               videoanalysis->fps_period,
                               par);

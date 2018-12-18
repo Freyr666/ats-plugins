@@ -213,39 +213,39 @@ gst_audioanalysis_class_init (GstAudioAnalysisClass * klass)
         properties [PROP_SILENCE_CONT] =
                 g_param_spec_float("silence_cont", "Silence cont err boundary",
                                    "Silence cont err meas",
-                                   0., 1., 1., G_PARAM_READWRITE);
+                                   -70.0, -5.0, -35.0, G_PARAM_READWRITE);
         properties [PROP_SILENCE_CONT_EN] =
                 g_param_spec_boolean("silence_cont_en", "Silence cont err enabled",
-                                     "Enable silence cont err meas", FALSE, G_PARAM_READWRITE);
+                                     "Enable silence cont err meas", TRUE, G_PARAM_READWRITE);
         properties [PROP_SILENCE_PEAK] =
                 g_param_spec_float("silence_peak", "Silence peak err boundary",
                                    "Silence peak err meas",
-                                   0., 1., 1., G_PARAM_READWRITE);
+                                   -70.0, -5.0, -45.0, G_PARAM_READWRITE);
         properties [PROP_SILENCE_PEAK_EN] =
                 g_param_spec_boolean("silence_peak_en", "Silence peak err enabled",
-                                     "Enable silence peak err meas", FALSE, G_PARAM_READWRITE);
+                                     "Enable silence peak err meas", TRUE, G_PARAM_READWRITE);
         properties [PROP_SILENCE_DURATION] =
                 g_param_spec_float("silence_duration", "Silence duration boundary",
                                    "Silence err duration",
-                                   0., 1., 1., G_PARAM_READWRITE);
+                                   0., G_MAXFLOAT, 10., G_PARAM_READWRITE);
         properties [PROP_LOUDNESS_CONT] =
                 g_param_spec_float("loudness_cont", "Loudness cont err boundary",
                                    "Loudness cont err meas",
-                                   0., 1., 1., G_PARAM_READWRITE);
+                                   -70.0, -5.0, -21.9, G_PARAM_READWRITE);
         properties [PROP_LOUDNESS_CONT_EN] =
                 g_param_spec_boolean("loudness_cont_en", "Loudness cont err enabled",
-                                     "Enable loudness cont err meas", FALSE, G_PARAM_READWRITE);
+                                     "Enable loudness cont err meas", TRUE, G_PARAM_READWRITE);
         properties [PROP_LOUDNESS_PEAK] =
                 g_param_spec_float("loudness_peak", "Loudness peak err boundary",
                                    "Loudness peak err meas",
-                                   0., 1., 1., G_PARAM_READWRITE);
+                                   -70.0, -5.0, -15.0, G_PARAM_READWRITE);
         properties [PROP_LOUDNESS_PEAK_EN] =
                 g_param_spec_boolean("loudness_peak_en", "Loudness peak err enabled",
-                                     "Enable loudness peak err meas", FALSE, G_PARAM_READWRITE);
+                                     "Enable loudness peak err meas", TRUE, G_PARAM_READWRITE);
         properties [PROP_LOUDNESS_DURATION] =
                 g_param_spec_float("loudness_duration", "Loudness duration boundary",
                                    "Loudness err duration",
-                                   0., 1., 1., G_PARAM_READWRITE);
+                                   0., G_MAXFLOAT, 2.0, G_PARAM_READWRITE);
   
         g_object_class_install_properties(gobject_class, LAST_PROP, properties);
 }
@@ -258,13 +258,29 @@ gst_audioanalysis_init (GstAudioAnalysis *audioanalysis)
         audioanalysis->loss = 1.;
         audioanalysis->adv_diff = 0.5;
         audioanalysis->adv_buf = 100;
+
+        /* TODO cleanup this mess */
         for (int i = 0; i < PARAM_NUMBER; i++) {
-                audioanalysis->params_boundary[i].cont = 1.;
-                audioanalysis->params_boundary[i].peak = 1.;
-                audioanalysis->params_boundary[i].cont_en = FALSE;
-                audioanalysis->params_boundary[i].peak_en = FALSE;
-                audioanalysis->params_boundary[i].duration = 1.;
+                audioanalysis->params_boundary[i].cont_en = TRUE;
+                audioanalysis->params_boundary[i].peak_en = TRUE;
         }
+        
+        audioanalysis->params_boundary[SILENCE_SHORTT].cont = -35.0;
+        audioanalysis->params_boundary[SILENCE_SHORTT].peak = -45.0;
+        audioanalysis->params_boundary[SILENCE_SHORTT].duration = 10.;
+        
+        audioanalysis->params_boundary[SILENCE_MOMENT].cont = -45.0;
+        audioanalysis->params_boundary[SILENCE_MOMENT].peak = -35.0;
+        audioanalysis->params_boundary[SILENCE_MOMENT].duration = 10.;
+        
+        audioanalysis->params_boundary[LOUDNESS_SHORTT].cont = -21.9;
+        audioanalysis->params_boundary[LOUDNESS_SHORTT].peak = -15.0;
+        audioanalysis->params_boundary[LOUDNESS_SHORTT].duration = 2.;
+        
+        audioanalysis->params_boundary[LOUDNESS_MOMENT].cont = -21.9;
+        audioanalysis->params_boundary[LOUDNESS_MOMENT].peak = -15.0;
+        audioanalysis->params_boundary[LOUDNESS_MOMENT].duration = 2.;
+        
         /* private */
         for (int i = 0; i < PARAM_NUMBER; i++) {
                 audioanalysis->cont_err_duration[i] = 0.;
