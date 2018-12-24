@@ -350,8 +350,11 @@ gst_videoanalysis_init (GstVideoAnalysis *videoanalysis)
         videoanalysis->params_boundary[FREEZE].peak = 100.00;
         videoanalysis->params_boundary[FREEZE].duration = 2.00;
 
+        videoanalysis->params_boundary[DIFF].cont_en = FALSE; /* TODO FALSE */
+        videoanalysis->params_boundary[DIFF].peak_en = FALSE; /* TODO FALSE */
+        
         videoanalysis->params_boundary[DIFF].cont = 0.05;
-        videoanalysis->params_boundary[DIFF].peak = 0.01;
+        videoanalysis->params_boundary[DIFF].peak = 0.02;
         videoanalysis->params_boundary[DIFF].duration = 2.00;
 
         videoanalysis->params_boundary[BLOCKY].cont = 10.00;
@@ -654,6 +657,43 @@ _find_local_gl_context (GstGLBaseFilter * filter)
   return FALSE;
 }
 
+static void
+shader_create (GstGLContext * context, GstVideoAnalysis * va)
+{
+        GError * error;
+        if (!(va->shader =
+              gst_gl_shader_new_link_with_stages(context, &error,
+                                                 gst_glsl_stage_new_with_string (context, GL_COMPUTE_SHADER,
+                                                                                 GST_GLSL_VERSION_450,
+                                                                                 GST_GLSL_PROFILE_CORE,
+                                                                                 shader_source),
+                                                 NULL))) {
+                GST_ELEMENT_ERROR (va, RESOURCE, NOT_FOUND,
+                                   ("Failed to initialize shader"), (NULL));
+        }
+        if (!(va->shader_block =
+              gst_gl_shader_new_link_with_stages(context, &error,
+                                                 gst_glsl_stage_new_with_string (context, GL_COMPUTE_SHADER,
+                                                                                 GST_GLSL_VERSION_450,
+                                                                                 GST_GLSL_PROFILE_CORE,
+                                                                                 shader_source_block),
+                                                 NULL))) {
+                GST_ELEMENT_ERROR (va, RESOURCE, NOT_FOUND,
+                                   ("Failed to initialize shader block"), (NULL));
+        }
+        for (int i = 0; i < va->latency; i++) {
+                if (va->buffer[i]) {
+                        glDeleteBuffers(1, &va->buffer[i]);
+                        va->buffer[i] = 0;
+                }
+                glGenBuffers(1, &va->buffer[i]);
+                glBindBuffer(GL_SHADER_STORAGE_BUFFER, va->buffer[i]);
+                glBufferData(GL_SHADER_STORAGE_BUFFER,
+                             (va->in_info.width / 8) * (va->in_info.height / 8) * sizeof(struct Accumulator),
+                             NULL, GL_DYNAMIC_COPY);
+        }
+}
+
 static gboolean
 gst_videoanalysis_set_caps (GstBaseTransform * trans,
                             GstCaps * incaps,
@@ -681,10 +721,15 @@ gst_videoanalysis_set_caps (GstBaseTransform * trans,
                                               * (videoanalysis->in_info.height / 8)
                                               * sizeof(struct Accumulator));
 
-        if (! _find_local_gl_context(GST_GL_BASE_FILTER(trans))) {
+        if ( (! GST_GL_BASE_FILTER (trans)->context)
+             && (! _find_local_gl_context(GST_GL_BASE_FILTER(trans)))) {
                 GST_WARNING ("Could not find a context");
                 return FALSE;
         }
+
+        gst_gl_context_thread_add(GST_GL_BASE_FILTER (trans)->context,
+                                  (GstGLContextThreadFunc) shader_create,
+                                  videoanalysis);
         
         return GST_BASE_TRANSFORM_CLASS(parent_class)->set_caps(trans,incaps,outcaps);
 
@@ -801,43 +846,6 @@ inbuf_error:
   }
 */
 
-static void
-shader_create (GstGLContext * context, GstVideoAnalysis * va)
-{
-        GError * error;
-        if (!(va->shader =
-              gst_gl_shader_new_link_with_stages(context, &error,
-                                                 gst_glsl_stage_new_with_string (context, GL_COMPUTE_SHADER,
-                                                                                 GST_GLSL_VERSION_450,
-                                                                                 GST_GLSL_PROFILE_CORE,
-                                                                                 shader_source),
-                                                 NULL))) {
-                GST_ELEMENT_ERROR (va, RESOURCE, NOT_FOUND,
-                                   ("Failed to initialize shader"), (NULL));
-        }
-        if (!(va->shader_block =
-              gst_gl_shader_new_link_with_stages(context, &error,
-                                                 gst_glsl_stage_new_with_string (context, GL_COMPUTE_SHADER,
-                                                                                 GST_GLSL_VERSION_450,
-                                                                                 GST_GLSL_PROFILE_CORE,
-                                                                                 shader_source_block),
-                                                 NULL))) {
-                GST_ELEMENT_ERROR (va, RESOURCE, NOT_FOUND,
-                                   ("Failed to initialize shader block"), (NULL));
-        }
-        for (int i = 0; i < va->latency; i++) {
-                if (va->buffer[i]) {
-                        glDeleteBuffers(1, &va->buffer[i]);
-                        va->buffer[i] = 0;
-                }
-                glGenBuffers(1, &va->buffer[i]);
-                glBindBuffer(GL_SHADER_STORAGE_BUFFER, va->buffer[i]);
-                glBufferData(GL_SHADER_STORAGE_BUFFER,
-                             (va->in_info.width / 8) * (va->in_info.height / 8) * sizeof(struct Accumulator),
-                             NULL, GL_DYNAMIC_COPY);
-        }
-}
-
 
 static void
 analyse (GstGLContext *context, GstVideoAnalysis * va)
@@ -946,8 +954,8 @@ videoanalysis_apply (GstVideoAnalysis * va, GstGLMemory * tex)
         va->tex = tex;
 
         /* Compile shader */
-        if (G_UNLIKELY (!va->shader) )
-                gst_gl_context_thread_add(context, (GstGLContextThreadFunc) shader_create, va);
+        //if (G_UNLIKELY (!va->shader) )
+        //        gst_gl_context_thread_add(context, (GstGLContextThreadFunc) shader_create, va);
 
         /* Analyze */
         gst_gl_context_thread_add(context, (GstGLContextThreadFunc) analyse, va);
