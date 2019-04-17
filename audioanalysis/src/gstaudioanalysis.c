@@ -609,8 +609,8 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
                 err_add_timestamp(audioanalysis->errors, tm);
                 err_add_params(audioanalysis->errors, &audioanalysis->params);
 
-                gpointer d = err_dump(audioanalysis->errors);
-                GstBuffer* data = gst_buffer_new_wrapped (d, sizeof(d));
+                gpointer d = err_dump(audioanalysis->errors); // TODO cleanup
+                GstBuffer* data = gst_buffer_new_wrapped (d, sizeof(Error[PARAM_NUMBER]));
                 g_signal_emit(audioanalysis, signals[DATA_SIGNAL], 0, data);
 
                 audioanalysis->time_send = current_time;

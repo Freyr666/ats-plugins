@@ -797,7 +797,7 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
                 err_add_params(videoanalysis->errors, &videoanalysis->params);
 
                 gpointer d = err_dump(videoanalysis->errors);
-                GstBuffer* data = gst_buffer_new_wrapped (d, sizeof(d));
+                GstBuffer* data = gst_buffer_new_wrapped (d, sizeof(Error[PARAM_NUMBER]));
                 g_signal_emit(videoanalysis, signals[DATA_SIGNAL], 0, data);
 
                 videoanalysis->frame = 0;
