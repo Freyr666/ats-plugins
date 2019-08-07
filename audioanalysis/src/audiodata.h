@@ -19,7 +19,7 @@
 #define AUDIODATA_H
 
 #include <glib.h>
-
+/*
 typedef struct __Param       Param;
 typedef struct __AudioParams AudioParams;
 
@@ -40,5 +40,5 @@ void param_reset (AudioParams*);
 void param_avg (AudioParams*);
 void param_add_shortt (AudioParams*, double);
 void param_add_moment (AudioParams*, double);
-
+*/
 #endif /* AUDIODATA_H */
