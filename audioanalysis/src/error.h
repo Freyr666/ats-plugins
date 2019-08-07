@@ -3,7 +3,6 @@
 
 #include <gst/gst.h>
 #include <glib.h>
-#include "audiodata.h"
 
 typedef enum {
   SILENCE_SHORTT,

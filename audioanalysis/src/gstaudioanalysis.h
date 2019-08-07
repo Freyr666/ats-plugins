@@ -24,7 +24,6 @@
 #include <stdatomic.h>
 #include "ebur128.h"
 
-#include "audiodata.h"
 #include "error.h"
 
 #define OBSERVATION_TIME 100000000

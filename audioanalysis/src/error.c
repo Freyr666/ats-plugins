@@ -54,13 +54,13 @@ data_ctx_reset (struct data_ctx * ctx,
                      + (sizeof (struct data) + length * sizeof (struct point)) * MEAS_NUMBER);
 
   for (int i = 0; i < PARAM_NUMBER; i++) {
-    ctx->errs[i] = &((struct flags*)ctx->ptr[i]);
+    ctx->errs[i] = ctx->ptr + i * sizeof(struct flags);
   }
 
-  data_ptr = &((struct flags*)ctx->ptr[PARAM_NUMBER]);
+  data_ptr = ctx->ptr + PARAM_NUMBER * sizeof(struct flags);
   
   for (int i = 0; i < MEAS_NUMBER; i++) {
-    ctx->current[i] = (struct data*)data_ptr->points;
+    ctx->current[i] = ((struct data*)data_ptr)->values;
     data_ptr += sizeof(struct data) + sizeof(struct point) * length;
   }
 }
@@ -73,9 +73,9 @@ data_ctx_add_point (struct data_ctx * ctx,
 {
   assert (ctx->ptr != NULL);
   
-  ctx->point[meas]->time = t;
-  ctx->point[meas]->data = v;
-  ctx->point[meas]++;
+  ctx->current[meas]->time = t;
+  ctx->current[meas]->data = v;
+  ctx->current[meas]++;
 }
 
 void *
@@ -92,12 +92,12 @@ data_ctx_pull_out_data (struct data_ctx * ctx,
   {
     sz += sizeof (struct flags) * PARAM_NUMBER;
 
-    data_tmp_ptr = &((struct flags*)ctx->ptr[PARAM_NUMBER]);
+    data_tmp_ptr = ctx->ptr + sz;
 
-    len = (struct flags*)data_tmp_ptr->length;
+    len = ((struct data *)data_tmp_ptr)->length;
 
     /* Assume all measurments are of the same size */
-    sz += (sizeof (struct data) + length * sizeof (struct point)) * MEAS_NUMBER;
+    sz += (sizeof (struct data) + len * sizeof (struct point)) * MEAS_NUMBER;
   }
   
   ctx->ptr = NULL;
@@ -118,7 +118,7 @@ data_ctx_flags_cmp (struct data_ctx * ctx,
                     double val)
 {
   gboolean peak = FALSE, cont = FALSE;
-  struct flags * flags = ctx->flags [param];
+  struct flags * flags = ctx->errs [param];
   
   if (bounds->peak_en)
     peak = upper ? (val > bounds->peak) : (val < bounds->peak);
@@ -134,7 +134,7 @@ data_ctx_flags_cmp (struct data_ctx * ctx,
       cont = *dur > bounds->duration;
     }
   if (peak)
-    err->peak_flag = peak;
+    flags->peak_flag.value = peak;
   if (cont)
-    err->cont_flag = cont;
+    flags->cont_flag.value = cont;
 }
