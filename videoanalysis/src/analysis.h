@@ -1,7 +1,7 @@
 #include <glib.h>
 #include <gst/gl/gl.h>
 
-struct Accumulator {
+struct accumulator {
         GLfloat frozen;
         GLfloat black;
         GLfloat bright;

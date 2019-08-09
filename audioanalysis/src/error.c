@@ -119,7 +119,6 @@ data_ctx_pull_out_data (struct data_ctx * ctx,
   return data;
 }
 
-/* Unfinished */
 void
 data_ctx_flags_cmp (struct data_ctx * ctx,
                     PARAMETER param,
