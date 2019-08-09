@@ -76,7 +76,8 @@ void data_ctx_add_point (struct data_ctx * ctx,
                          gint64 t);
 
 /* invalidates the internal pointer */
-void * data_ctx_pull_out_data (struct data_ctx * ctx, size_t * size);
+void * data_ctx_pull_out_data (struct data_ctx * ctx,
+                               size_t * size);
 
 void data_ctx_flags_cmp (struct data_ctx * ctx,
                          PARAMETER param,

@@ -506,6 +506,7 @@ _update_flags_and_timestamps (struct data_ctx * ctx,
   
   for (int p = 0; p < PARAM_NUMBER; p++)
     {
+      /* Cont flag */
       current_flag = &ctx->errs[p]->cont_flag;
 
       if (current_flag->value)
@@ -516,6 +517,16 @@ _update_flags_and_timestamps (struct data_ctx * ctx,
         }
       else
         update_timestamp (state, p, new_ts);
+
+      /* Peak flag */
+      current_flag = &ctx->errs[p]->peak_flag;
+
+      if (current_flag->value)
+        {
+          current_flag->timestamp = new_ts;
+          /* TODO check if this is actually true */
+          current_flag->span = GST_SECOND;
+        }
     }
 }
 
@@ -546,7 +557,6 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
   GstAudioAnalysis *audioanalysis = GST_AUDIOANALYSIS (trans);
   
   GstMapInfo map;
-  static gint64 evaluation_counter = 0;
   guint num_frames;
 
   GST_DEBUG_OBJECT (audioanalysis, "transform_ip");
@@ -578,43 +588,11 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
 
   gst_buffer_unmap(buf, &map);
 
-  /* send data for the momentary and short term states
-   * after a second of observations
-   */
-  if (GST_BUFFER_TIMESTAMP (buf)
-      >= audioanalysis->next_data_message_ts)
-    {
-      size_t data_size;
-      
-      evaluation_counter = 0;
-
-      audioanalysis->time_now = g_get_real_time ();
-
-      /* Update clock */
-      audioanalysis->next_data_message_ts =
-        GST_BUFFER_TIMESTAMP (buf) + GST_SECOND;
-      
-      _update_flags_and_timestamps (&audioanalysis->errors,
-                                    &audioanalysis->error_state,
-                                    audioanalysis->time_now);
-                
-      gpointer d = data_ctx_pull_out_data (&audioanalysis->errors, &data_size);
-
-      data_ctx_reset (&audioanalysis->errors, EVALS_IN_SECOND * audioanalysis->period);
-
-      GstBuffer* data = gst_buffer_new_wrapped (d, data_size);
-      g_signal_emit(audioanalysis, signals[DATA_SIGNAL], 0, data);
-
-      gst_buffer_unref (data);
-  }
-
   /* eval loudness for the 100ms interval */
   if (GST_BUFFER_TIMESTAMP (buf)
       >= audioanalysis->next_evaluation_ts)
     {
       double moment, shortt;
-
-      evaluation_counter++;
 
       audioanalysis->time_now +=
         90 * GST_MSECOND
@@ -629,17 +607,11 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
        * sample for the sake of performance
        */
       atomic_store(&audioanalysis->got_frame, TRUE);
-
-      /* Check if the amount of evaluation points
-       * hasn't surpassed the preallocated limit
-       */
-      if (G_UNLIKELY (evaluation_counter > audioanalysis->errors.limit))
-        goto exit;
     
       ebur128_loudness_momentary(audioanalysis->lufs_state, &moment);
       ebur128_loudness_shortterm(audioanalysis->lufs_state, &shortt);
 
-    /* errors */
+      /* errors */
       _set_flags (&audioanalysis->errors,
                   audioanalysis->params_boundary,
                   &audioanalysis->error_state,
@@ -657,8 +629,35 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
                           audioanalysis->time_now);
                 
     }
+  
+  /* send data for the momentary and short term states
+   * after a second of observations
+   */
+  if (GST_BUFFER_TIMESTAMP (buf)
+      >= audioanalysis->next_data_message_ts)
+    {
+      size_t data_size;
+      
+      audioanalysis->time_now = g_get_real_time ();
 
- exit:
+      /* Update clock */
+      audioanalysis->next_data_message_ts =
+        GST_BUFFER_TIMESTAMP (buf) + (GST_SECOND * audioanalysis->period);
+      
+      _update_flags_and_timestamps (&audioanalysis->errors,
+                                    &audioanalysis->error_state,
+                                    audioanalysis->time_now);
+                
+      gpointer d = data_ctx_pull_out_data (&audioanalysis->errors, &data_size);
+
+      data_ctx_reset (&audioanalysis->errors, EVALS_IN_SECOND * audioanalysis->period);
+
+      GstBuffer* data = gst_buffer_new_wrapped (d, data_size);
+      g_signal_emit(audioanalysis, signals[DATA_SIGNAL], 0, data);
+
+      gst_buffer_unref (data);
+  }
+
   return GST_FLOW_OK;
 }
 
@@ -708,6 +707,29 @@ plugin_init (GstPlugin * plugin)
                                GST_RANK_NONE,
                                GST_TYPE_AUDIOANALYSIS);
 }
+
+/* FIXME: these are normally defined by the GStreamer build system.
+   If you are creating an element to be included in gst-plugins-*,
+   remove these, as they're always defined.  Otherwise, edit as
+   appropriate for your external plugin package. */
+#ifndef VERSION
+#define VERSION "0.1.9"
+#endif
+#ifndef PACKAGE
+#define PACKAGE "audioanalysis"
+#endif
+#ifndef PACKAGE_NAME
+#define PACKAGE_NAME "audioanalysis_package"
+#endif
+#ifndef GST_PACKAGE_ORIGIN
+#define GST_PACKAGE_ORIGIN URL
+#endif
+
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
+		   GST_VERSION_MINOR,
+		   audioanalysis,
+		   "Package for audio data analysis",
+		   plugin_init, VERSION, LIC, PACKAGE_NAME, GST_PACKAGE_ORIGIN)
 
 /*
 static gboolean
@@ -798,27 +820,3 @@ gst_audioanalysis_eval_global (GstBaseTransform * trans,
      audioanalysis->glob_ad_flag = FALSE;
      }
      }*/
-
-/* FIXME: these are normally defined by the GStreamer build system.
-   If you are creating an element to be included in gst-plugins-*,
-   remove these, as they're always defined.  Otherwise, edit as
-   appropriate for your external plugin package. */
-#ifndef VERSION
-#define VERSION "0.1.9"
-#endif
-#ifndef PACKAGE
-#define PACKAGE "audioanalysis"
-#endif
-#ifndef PACKAGE_NAME
-#define PACKAGE_NAME "audioanalysis_package"
-#endif
-#ifndef GST_PACKAGE_ORIGIN
-#define GST_PACKAGE_ORIGIN URL
-#endif
-
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-		   GST_VERSION_MINOR,
-		   audioanalysis,
-		   "Package for audio data analysis",
-		   plugin_init, VERSION, LIC, PACKAGE_NAME, GST_PACKAGE_ORIGIN)
-
