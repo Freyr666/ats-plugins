@@ -616,6 +616,10 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
 
       evaluation_counter++;
 
+      audioanalysis->time_now +=
+        90 * GST_MSECOND
+        + (audioanalysis->next_evaluation_ts - GST_BUFFER_TIMESTAMP (buf));
+
       /* Update clock */
       audioanalysis->next_evaluation_ts =
         GST_BUFFER_TIMESTAMP (buf) + (GST_MSECOND * 90);
@@ -645,14 +649,12 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
       data_ctx_add_point (&audioanalysis->errors,
                           SHORTT,
                           shortt,
-                          (audioanalysis->time_now
-                           + (100 * GST_MSECOND * evaluation_counter)));
+                          audioanalysis->time_now);
 
       data_ctx_add_point (&audioanalysis->errors,
                           MOMENT,
                           moment,
-                          (audioanalysis->time_now
-                           + (100 * GST_MSECOND * evaluation_counter)));
+                          audioanalysis->time_now);
                 
     }
 
