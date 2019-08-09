@@ -50,12 +50,15 @@ struct flags {
 
 struct data {
   guint32      length;
+  guint32      meaningful;
   struct point values [];
 };
 
 struct data_ctx {
   struct flags * errs [PARAM_NUMBER];
   struct point * current [MEAS_NUMBER];
+  guint * point_counter [MEAS_NUMBER];
+  guint limit;
   /* flags [PARAM_NUMBER] data [MEAS_NUMBER] */
   void * ptr;
 };
@@ -64,6 +67,8 @@ void data_ctx_init (struct data_ctx * ctx);
 
 void data_ctx_reset (struct data_ctx * ctx,
                      guint32 length);
+
+void data_ctx_delete (struct data_ctx * ctx);
 
 void data_ctx_add_point (struct data_ctx * ctx,
                          MEASURMENT meas,

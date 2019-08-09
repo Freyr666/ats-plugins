@@ -27,7 +27,6 @@
 #include "error.h"
 
 #define OBSERVATION_TIME 100000000
-#define EVAL_PERIOD 10
 
 G_BEGIN_DECLS
 
@@ -54,37 +53,38 @@ struct state {
 
 struct _GstAudioAnalysis
 {
-  GstAudioFilter parent;
+  GstAudioFilter  parent;
 
-  int                  task_counter;
-  GRecMutex            task_lock;
-  GstClockTimeDiff     timeout_clock;
-  _Atomic GstClockTime timeout_last_clock;
-  gboolean             timeout_expired;
-  GstTask *            timeout_task;
-  /* Public */
-  guint    timeout;
-  /* TODO add later: period */
-  int      program;
-  guint    period;
-  float    loss;
-  gfloat   adv_diff;
-  gint     adv_buf;
-  struct boundary params_boundary [PARAM_NUMBER];
-  /* Private */
+  /* Stream-loss detection task */
+  atomic_bool     got_frame;
+  atomic_bool     task_should_run;
+  GRecMutex       task_lock;
 
+  GstTask *       timeout_task;
+
+  /* Loudness evaluation */
   gint64          time_now;
   struct state    error_state;
   struct data_ctx errors;
+  GstClockTime    next_evaluation_ts;
+  GstClockTime    next_data_message_ts;
+  
+  ebur128_state   *lufs_state;
+  /* Global loudless
+   * ebur128_state   *glob_state;
+   * gboolean        glob_ad_flag;
+   * time_t          glob_start;
+   */
+  
+  /* Parameters */
+  guint           period;       /* Seconds between data_signal events */
+  guint           timeout;      /* Seconds before stream_lost_signal */
+  struct boundary params_boundary [PARAM_NUMBER]; /* Boundary values fo error detection */
+  /* float    loss;
+   * gfloat   adv_diff;
+   * gint     adv_buf;
+   */
 
-  ebur128_state *state;
-  /* Global loudless */
-  ebur128_state *glob_state;
-  gboolean      glob_ad_flag;
-  time_t        glob_start;
-  //  GstClock* clock;
-  GstClockTime  time_eval;
-  GstClockTime  time_send;
 };
 
 struct _GstAudioAnalysisClass

@@ -47,8 +47,10 @@ data_ctx_reset (struct data_ctx * ctx,
 {
   void * data_ptr;
   
-  if (ctx->ptr)
+  if (ctx->ptr != NULL)
     free (ctx->ptr);
+
+  ctx->limit = length;
 
   ctx->ptr = malloc (sizeof (struct flags) * PARAM_NUMBER
                      + (sizeof (struct data) + length * sizeof (struct point)) * MEAS_NUMBER);
@@ -61,8 +63,20 @@ data_ctx_reset (struct data_ctx * ctx,
   
   for (int i = 0; i < MEAS_NUMBER; i++) {
     ctx->current[i] = ((struct data*)data_ptr)->values;
+    ctx->point_counter[i] = &((struct data*)data_ptr)->meaningful;
+    ((struct data*)data_ptr)->length = length;
+    ((struct data*)data_ptr)->meaningful = 0;
     data_ptr += sizeof(struct data) + sizeof(struct point) * length;
   }
+}
+
+void
+data_ctx_delete (struct data_ctx * ctx)
+{
+  if (ctx->ptr != NULL)
+    free (ctx->ptr);
+
+  ctx->ptr = NULL;
 }
 
 void
@@ -72,10 +86,14 @@ data_ctx_add_point (struct data_ctx * ctx,
                     gint64 t)
 {
   assert (ctx->ptr != NULL);
-  
+
+  if (G_UNLIKELY (*ctx->point_counter[meas] >= ctx->limit))
+    return; /* TODO assert? */
+    
   ctx->current[meas]->time = t;
   ctx->current[meas]->data = v;
   ctx->current[meas]++;
+  (*ctx->point_counter[meas])++;
 }
 
 void *
@@ -83,21 +101,15 @@ data_ctx_pull_out_data (struct data_ctx * ctx,
                         size_t * size)
 {
   size_t sz = 0;
-  guint32 len;
   void * data = ctx->ptr;
-  void * data_tmp_ptr;
 
   assert (ctx->ptr != NULL);
 
   {
     sz += sizeof (struct flags) * PARAM_NUMBER;
 
-    data_tmp_ptr = ctx->ptr + sz;
-
-    len = ((struct data *)data_tmp_ptr)->length;
-
     /* Assume all measurments are of the same size */
-    sz += (sizeof (struct data) + len * sizeof (struct point)) * MEAS_NUMBER;
+    sz += (sizeof (struct data) + ctx->limit * sizeof (struct point)) * MEAS_NUMBER;
   }
   
   ctx->ptr = NULL;

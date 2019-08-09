@@ -48,6 +48,8 @@
 #include "ebur128.h"
 #include "gstaudioanalysis.h"
 
+#define EVALS_IN_SECOND 11 /* There are 10 100ms periods in a second + 10% error */
+
 #define DIFF(x,y)((x > y)?(x-y):(y-x))
 
 GST_DEBUG_CATEGORY_STATIC (gst_audioanalysis_debug_category);
@@ -61,23 +63,24 @@ static void gst_audioanalysis_set_property (GObject * object,
                                             guint property_id,
                                             const GValue * value,
                                             GParamSpec * pspec);
+
 static void gst_audioanalysis_get_property (GObject * object,
                                             guint property_id,
                                             GValue * value,
                                             GParamSpec * pspec);
-static void gst_audioanalysis_dispose (GObject * object);
+
 static void gst_audioanalysis_finalize (GObject * object);
-static gboolean gst_audioanalysis_start (GstBaseTransform * trans);
-static gboolean gst_audioanalysis_stop  (GstBaseTransform * trans);
+
+static GstStateChangeReturn gst_audioanalysis_change_state (GstElement * element,
+                                                            GstStateChange transition);
+
 static gboolean gst_audioanalysis_setup (GstAudioFilter * filter,
                                          const GstAudioInfo * info);
+
 static GstFlowReturn gst_audioanalysis_transform_ip (GstBaseTransform * trans,
                                                      GstBuffer * buf);
-static void gst_audioanalysis_timeout (GstAudioAnalysis * va);
-static inline void gst_audioanalysis_eval_global (GstBaseTransform * trans,
-                                                  guint ad_flag);
-static gboolean gst_filter_sink_ad_event (GstBaseTransform * parent,
-                                          GstEvent * event);
+
+static void gst_audioanalysis_timeout_loop (GstAudioAnalysis * audioanalysis);
 
 /* signals */
 enum
@@ -93,11 +96,11 @@ enum
   {
     PROP_0,
     PROP_TIMEOUT,
-    PROP_PROGRAM,
     PROP_PERIOD,
-    PROP_LOSS,
-    PROP_ADV_DIFF,
-    PROP_ADV_BUF,
+    /* PROP_LOSS,
+     * PROP_ADV_DIFF,
+     * PROP_ADV_BUF,
+     */
     PROP_SILENCE_CONT,
     PROP_SILENCE_CONT_EN,
     PROP_SILENCE_PEAK,
@@ -144,6 +147,7 @@ static void
 gst_audioanalysis_class_init (GstAudioAnalysisClass * klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+  GstElementClass *element_class = GST_ELEMENT_CLASS (klass); 
   GstBaseTransformClass *base_transform_class = GST_BASE_TRANSFORM_CLASS (klass);
   GstAudioFilterClass *audio_filter_class = GST_AUDIO_FILTER_CLASS (klass);
 
@@ -162,14 +166,10 @@ gst_audioanalysis_class_init (GstAudioAnalysisClass * klass)
 
   gobject_class->set_property = gst_audioanalysis_set_property;
   gobject_class->get_property = gst_audioanalysis_get_property;
-  gobject_class->dispose = gst_audioanalysis_dispose;
   gobject_class->finalize = gst_audioanalysis_finalize;
+  element_class->change_state = gst_audioanalysis_change_state;
   audio_filter_class->setup = GST_DEBUG_FUNCPTR (gst_audioanalysis_setup);
-  base_transform_class->start = gst_audioanalysis_start;
-  base_transform_class->stop  = gst_audioanalysis_stop;
   base_transform_class->transform_ip = GST_DEBUG_FUNCPTR (gst_audioanalysis_transform_ip);
-  base_transform_class->sink_event = GST_DEBUG_FUNCPTR (gst_filter_sink_ad_event);
-  
 
   signals[DATA_SIGNAL] =
     g_signal_new("data", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
@@ -193,12 +193,12 @@ gst_audioanalysis_class_init (GstAudioAnalysisClass * klass)
     g_param_spec_uint("period", "Period",
                       "Measuring period",
                       1, 60, 1, G_PARAM_READWRITE);
-  properties [PROP_PROGRAM] =
+  /*  properties [PROP_PROGRAM] =
     g_param_spec_int("program", "Program",
                      "Program",
                      0, G_MAXINT, 2010, G_PARAM_READWRITE);
-        
-  properties [PROP_LOSS] =
+  */    
+  /* properties [PROP_LOSS] =
     g_param_spec_float("loss", "Loss",
                        "Audio loss",
                        0., G_MAXFLOAT, 1., G_PARAM_READWRITE);
@@ -210,6 +210,7 @@ gst_audioanalysis_class_init (GstAudioAnalysisClass * klass)
     g_param_spec_int("adv_buff", "Size of adv buffer",
                      "Size of adv buffer",
                      0, 1000, 100, G_PARAM_READWRITE);
+  */
   properties [PROP_SILENCE_CONT] =
     g_param_spec_float("silence_cont", "Silence cont err boundary",
                        "Silence cont err meas",
@@ -253,13 +254,8 @@ gst_audioanalysis_class_init (GstAudioAnalysisClass * klass)
 static void
 gst_audioanalysis_init (GstAudioAnalysis *audioanalysis)
 {  
-  audioanalysis->program = 2010;
   audioanalysis->period = 1;
-  audioanalysis->loss = 1.;
-  audioanalysis->adv_diff = 0.5;
-  audioanalysis->adv_buf = 100;
-
-  data_ctx_init (&audioanalysis->errors);
+  audioanalysis->timeout = 10;
   
   /* TODO cleanup this mess */
   for (int i = 0; i < PARAM_NUMBER; i++) {
@@ -284,18 +280,38 @@ gst_audioanalysis_init (GstAudioAnalysis *audioanalysis)
   audioanalysis->params_boundary[LOUDNESS_MOMENT].duration = 2.;
         
   /* private */
+  data_ctx_init (&audioanalysis->errors);
+  
   for (int i = 0; i < PARAM_NUMBER; i++) {
     audioanalysis->error_state.cont_err_duration[i] = 0.;
   }
-  audioanalysis->state = NULL;
-  audioanalysis->time_eval = 0;
-  audioanalysis->time_send = 0;
-  audioanalysis->glob_state = NULL;
-  audioanalysis->glob_ad_flag = FALSE;
-  audioanalysis->glob_start = 0;
-  audioanalysis->timeout = 10;
 
-  audioanalysis->timeout_task = NULL;
+  /* init in (setup) */
+  audioanalysis->lufs_state = NULL;
+  
+  audioanalysis->timeout_task = gst_task_new ((GstTaskFunction) gst_audioanalysis_timeout_loop,
+                                              audioanalysis,
+                                              NULL);
+  g_rec_mutex_init (&audioanalysis->task_lock);
+  gst_task_set_lock (audioanalysis->timeout_task, &audioanalysis->task_lock);
+}
+
+void
+gst_audioanalysis_finalize (GObject * object)
+{
+  GstAudioAnalysis *audioanalysis = GST_AUDIOANALYSIS (object);
+
+  GST_DEBUG_OBJECT (audioanalysis, "finalize");
+
+  if (audioanalysis->lufs_state != NULL)
+    ebur128_destroy(&audioanalysis->lufs_state);
+
+  data_ctx_delete (&audioanalysis->errors);
+
+  gst_object_unref (audioanalysis->timeout_task);
+  //g_rec_mutex_clear (&audioanalysis->task_lock);
+
+  G_OBJECT_CLASS (gst_audioanalysis_parent_class)->finalize (object);
 }
 
 void
@@ -312,20 +328,8 @@ gst_audioanalysis_set_property (GObject * object,
   case PROP_TIMEOUT:
     audioanalysis->timeout = g_value_get_uint(value);
     break;
-  case PROP_PROGRAM:
-    audioanalysis->program = g_value_get_int(value);
-    break;
   case PROP_PERIOD:
     audioanalysis->period = g_value_get_uint(value);
-    break;
-  case PROP_LOSS:
-    audioanalysis->loss = g_value_get_float(value);
-    break;
-  case PROP_ADV_DIFF:
-    audioanalysis->adv_diff = g_value_get_float(value);
-    break;
-  case PROP_ADV_BUF:
-    audioanalysis->adv_buf = g_value_get_int(value);
     break;
   case PROP_SILENCE_CONT:
     audioanalysis->params_boundary[SILENCE_SHORTT].cont = g_value_get_float(value);
@@ -387,20 +391,8 @@ gst_audioanalysis_get_property (GObject * object,
   case PROP_TIMEOUT: 
     g_value_set_uint(value, audioanalysis->timeout);
     break;
-  case PROP_PROGRAM: 
-    g_value_set_int(value, audioanalysis->program);
-    break;
   case PROP_PERIOD:
     g_value_set_uint(value, audioanalysis->period);
-    break;
-  case PROP_LOSS: 
-    g_value_set_float(value, audioanalysis->loss);
-    break;
-  case PROP_ADV_DIFF: 
-    g_value_set_float(value, audioanalysis->adv_diff);
-    break;
-  case PROP_ADV_BUF: 
-    g_value_set_int(value, audioanalysis->adv_buf);
     break;
   case PROP_SILENCE_CONT:
     g_value_set_float(value, audioanalysis->params_boundary[SILENCE_SHORTT].cont);
@@ -438,74 +430,44 @@ gst_audioanalysis_get_property (GObject * object,
   }
 }
 
-static gboolean
-gst_audioanalysis_start (GstBaseTransform * trans)
+static GstStateChangeReturn
+gst_audioanalysis_change_state (GstElement * element,
+                                GstStateChange transition)
 {
-  GstAudioAnalysis *audioanalysis = GST_AUDIOANALYSIS (trans);
+  GstAudioAnalysis *audioanalysis = GST_AUDIOANALYSIS (element);
 
-  audioanalysis->time_now = g_get_real_time ();
-  update_all_timestamps (&audioanalysis->error_state, audioanalysis->time_now);
-  for (int i = 0; i < PARAM_NUMBER; i++) {
-    audioanalysis->error_state.cont_err_duration[i] = 0.;
+  switch (transition) {
+    /* Initialize task and clocks */
+  case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+    {
+      audioanalysis->time_now = g_get_real_time ();
+      update_all_timestamps (&audioanalysis->error_state, audioanalysis->time_now);
+      for (int i = 0; i < PARAM_NUMBER; i++)
+        audioanalysis->error_state.cont_err_duration[i] = 0.;
+      
+      audioanalysis->next_evaluation_ts = 0;
+      audioanalysis->next_data_message_ts = 0;
+
+      atomic_store(&audioanalysis->got_frame, FALSE);
+      atomic_store(&audioanalysis->task_should_run, TRUE);
+      
+      gst_task_start (audioanalysis->timeout_task);
+    }
+    break;
+  case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+    {
+      atomic_store(&audioanalysis->task_should_run, FALSE);
+      
+      gst_task_join (audioanalysis->timeout_task);
+    }
+    break;
+  default:
+    break;
   }
-  
-  audioanalysis->timeout_expired = FALSE;
-  audioanalysis->timeout_clock = 1000000000 * audioanalysis->timeout;
-  atomic_store(&audioanalysis->timeout_last_clock,
-               gst_clock_get_time (gst_element_get_clock (GST_ELEMENT(trans))));
 
-  audioanalysis->task_counter = 0;
-  g_rec_mutex_init (&audioanalysis->task_lock);
-  audioanalysis->timeout_task = gst_task_new ((GstTaskFunction) gst_audioanalysis_timeout,
-                                              trans,
-                                              NULL);
-  gst_task_set_lock (audioanalysis->timeout_task, &audioanalysis->task_lock);
-  gst_task_start (audioanalysis->timeout_task);
-
-  return TRUE; //GST_BASE_TRANSFORM_CLASS(parent_class)->start(trans);
-}
-static gboolean
-gst_audioanalysis_stop  (GstBaseTransform * trans)
-{
-  GstAudioAnalysis *audioanalysis = GST_AUDIOANALYSIS (trans);
-        
-  if (audioanalysis->timeout_task) {
-    gst_task_stop (audioanalysis->timeout_task);
-    gst_task_join (audioanalysis->timeout_task);
-    gst_object_replace ((GstObject**)&audioanalysis->timeout_task, NULL);
-    g_rec_mutex_clear (&audioanalysis->task_lock);
-  }
-        
-  return TRUE; //GST_BASE_TRANSFORM_CLASS(parent_class)->stop(trans);
-}
-
-void
-gst_audioanalysis_dispose (GObject * object)
-{
-  GstAudioAnalysis *audioanalysis = GST_AUDIOANALYSIS (object);
-  
-  GST_DEBUG_OBJECT (audioanalysis, "dispose");
-
-  /* clean up as possible.  may be called multiple times */
-
-  G_OBJECT_CLASS (gst_audioanalysis_parent_class)->dispose (object);
-}
-
-void
-gst_audioanalysis_finalize (GObject * object)
-{
-  GstAudioAnalysis *audioanalysis = GST_AUDIOANALYSIS (object);
-
-  GST_DEBUG_OBJECT (audioanalysis, "finalize");
-
-  if (audioanalysis->state != NULL)
-    ebur128_destroy(&audioanalysis->state);
-  if (audioanalysis->glob_state != NULL)
-    ebur128_destroy(&audioanalysis->glob_state);
-
-  //gst_object_unref(audioanalysis->clock);
-
-  G_OBJECT_CLASS (gst_audioanalysis_parent_class)->finalize (object);
+  return
+    GST_ELEMENT_CLASS (gst_audioanalysis_parent_class)->change_state (element,
+                                                                      transition);
 }
 
 static gboolean
@@ -516,79 +478,22 @@ gst_audioanalysis_setup (GstAudioFilter * filter,
 
   GST_DEBUG_OBJECT (audioanalysis, "setup");
 
-  if (audioanalysis->state != NULL)
-    ebur128_destroy(&audioanalysis->state);
-  if (audioanalysis->glob_state != NULL)
-    ebur128_destroy(&audioanalysis->glob_state);
+  if (audioanalysis->lufs_state != NULL)
+    ebur128_destroy(&audioanalysis->lufs_state);
   
-  audioanalysis->state = ebur128_init(info->channels,
-                                      (unsigned long)info->rate,
-                                      EBUR128_MODE_S | EBUR128_MODE_M);
+  audioanalysis->lufs_state = ebur128_init(info->channels,
+                                           (unsigned long)info->rate,
+                                           EBUR128_MODE_S | EBUR128_MODE_M);
+  /*
   audioanalysis->glob_state = ebur128_init(info->channels,
                                            (unsigned long)info->rate,
                                            EBUR128_MODE_I);
-
-  guint32 per = EVAL_PERIOD * audioanalysis->period;
-  //param_reset(&audioanalysis->params);
+  */
+  guint32 per = EVALS_IN_SECOND * audioanalysis->period;
   data_ctx_reset (&audioanalysis->errors, per);
-
-  GstClockTime t = gst_clock_get_time(GST_ELEMENT(audioanalysis)->clock);
-  audioanalysis->time_eval = t;
-  audioanalysis->time_send = t;
 
   return TRUE;
 }
-
-static inline void
-gst_audioanalysis_eval_global (GstBaseTransform * trans,
-			       guint ad_flag)
-{
-  /*
-    GstAudioAnalysis *audioanalysis;
-    double           result, diff_time;
-    time_t           now;
-    gchar            string[50];
-
-    audioanalysis = GST_AUDIOANALYSIS (trans);
-    now = time(NULL);
-
-    // if measurements have already begun
-    if (audioanalysis->glob_ad_flag) {
-
-    ebur128_loudness_global(audioanalysis->glob_state, &result);
-    ebur128_clear_block_list(audioanalysis->glob_state);
-
-    diff_time = difftime(audioanalysis->glob_start, now);
-
-    g_snprintf(string, 39, "c%d:%d:%d:*:%.2f:%.2f:%d",
-    audioanalysis->stream_id,
-    audioanalysis->program,
-    audioanalysis->pid,
-    result, diff_time, ad_flag);
-
-    gst_audioanalysis_send_string(string, audioanalysis);
-    } else {
-    audioanalysis->glob_ad_flag = TRUE;
-    }
-
-    audioanalysis->glob_start = now;
-  */
-}
-
-
-  /* add frames to an ad state */
-  /* if (audioanalysis->glob_ad_flag) {
-
-     now = time(NULL);
-
-     ebur128_add_frames_short(audioanalysis->glob_state, (short*)map.data, num_frames);
-
-     // interval exceeded specified timeout
-     if (DIFF(now, audioanalysis->glob_start) >= audioanalysis->ad_timeout) {
-     ebur128_clear_block_list(audioanalysis->glob_state);
-     audioanalysis->glob_ad_flag = FALSE;
-     }
-     }*/
 
 #define SECOND 1000000
 
@@ -632,7 +537,6 @@ _set_flags (struct data_ctx * ctx,
                           IS_MOMENT(p) ? moment : shortt);
     }
 }
-            
 
 /* transform */
 static GstFlowReturn
@@ -640,76 +544,170 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
 				GstBuffer * buf)
 {
   GstAudioAnalysis *audioanalysis = GST_AUDIOANALYSIS (trans);
+  
   GstMapInfo map;
+  static gint64 evaluation_counter = 0;
   guint num_frames;
 
-  GstClockTime current_time = gst_clock_get_time(GST_ELEMENT_CLOCK(trans));
-
   GST_DEBUG_OBJECT (audioanalysis, "transform_ip");
-  
-  gst_buffer_map(buf, &map, GST_MAP_READ);
-  num_frames = map.size / (GST_AUDIO_FILTER_BPS(audioanalysis) * GST_AUDIO_FILTER_CHANNELS(audioanalysis));
 
-  ebur128_add_frames_short(audioanalysis->state, (short*)map.data, num_frames);
+  /* Initialize clocks if needed */
+  if (G_UNLIKELY (audioanalysis->next_evaluation_ts == 0
+                  || audioanalysis->next_data_message_ts == 0))
+    {
+      audioanalysis->next_evaluation_ts =
+        GST_BUFFER_TIMESTAMP (buf) + (GST_MSECOND * 90); /* TODO: There should be 100ms
+                                                          * periods but we will allow
+                                                          * a 10% overlap for the sake
+                                                          * of dealing with big samples
+                                                          * which rarely fit in 100ms window
+                                                          *
+                                                          * TODO: use sample rate to infer
+                                                          * the error
+                                                          */
+      audioanalysis->next_data_message_ts =
+        GST_BUFFER_TIMESTAMP (buf) + (GST_SECOND * audioanalysis->period);
+    }
+
+  gst_buffer_map(buf, &map, GST_MAP_READ);
+  num_frames =
+    map.size / (GST_AUDIO_FILTER_BPS(audioanalysis)
+                * GST_AUDIO_FILTER_CHANNELS(audioanalysis));
+
+  ebur128_add_frames_short(audioanalysis->lufs_state, (short*)map.data, num_frames);
+
+  gst_buffer_unmap(buf, &map);
 
   /* send data for the momentary and short term states
    * after a second of observations
    */
-  if (DIFF(current_time, audioanalysis->time_send)
-      >= OBSERVATION_TIME * EVAL_PERIOD * audioanalysis->period) {
-    size_t data_size;
+  if (GST_BUFFER_TIMESTAMP (buf)
+      >= audioanalysis->next_data_message_ts)
+    {
+      size_t data_size;
+      
+      evaluation_counter = 0;
 
-    /* Update timeout clock */
-    atomic_store(&audioanalysis->timeout_last_clock,
-                 gst_clock_get_time (GST_ELEMENT_CLOCK(trans)));
+      audioanalysis->time_now = g_get_real_time ();
 
-    audioanalysis->time_now = g_get_real_time ();
-
-    _update_flags_and_timestamps (&audioanalysis->errors,
-                                  &audioanalysis->error_state,
-                                  audioanalysis->time_now);
+      /* Update clock */
+      audioanalysis->next_data_message_ts =
+        GST_BUFFER_TIMESTAMP (buf) + GST_SECOND;
+      
+      _update_flags_and_timestamps (&audioanalysis->errors,
+                                    &audioanalysis->error_state,
+                                    audioanalysis->time_now);
                 
-    gpointer d = data_ctx_pull_out_data (&audioanalysis->errors, &data_size);
-                
-    GstBuffer* data = gst_buffer_new_wrapped (d, data_size);
-    g_signal_emit(audioanalysis, signals[DATA_SIGNAL], 0, data);
+      gpointer d = data_ctx_pull_out_data (&audioanalysis->errors, &data_size);
 
-    gst_buffer_unref (data);
+      data_ctx_reset (&audioanalysis->errors, EVALS_IN_SECOND * audioanalysis->period);
 
-    audioanalysis->time_send = current_time;
-    
-    data_ctx_reset (&audioanalysis->errors, EVAL_PERIOD * audioanalysis->period);
+      GstBuffer* data = gst_buffer_new_wrapped (d, data_size);
+      g_signal_emit(audioanalysis, signals[DATA_SIGNAL], 0, data);
+
+      gst_buffer_unref (data);
   }
 
   /* eval loudness for the 100ms interval */
-  if (DIFF(current_time, audioanalysis->time_eval)
-      >= OBSERVATION_TIME) {
-    double moment, shortt;
+  if (GST_BUFFER_TIMESTAMP (buf)
+      >= audioanalysis->next_evaluation_ts)
+    {
+      double moment, shortt;
+
+      evaluation_counter++;
+
+      /* Update clock */
+      audioanalysis->next_evaluation_ts =
+        GST_BUFFER_TIMESTAMP (buf) + (GST_MSECOND * 90);
+
+      /* Tell the timeout task that we've got some data 
+       * We are doing it once in 100ms instead of each
+       * sample for the sake of performance
+       */
+      atomic_store(&audioanalysis->got_frame, TRUE);
+
+      /* Check if the amount of evaluation points
+       * hasn't surpassed the preallocated limit
+       */
+      if (G_UNLIKELY (evaluation_counter > audioanalysis->errors.limit))
+        goto exit;
     
-    ebur128_loudness_momentary(audioanalysis->state, &moment);
-    ebur128_loudness_shortterm(audioanalysis->state, &shortt);
+      ebur128_loudness_momentary(audioanalysis->lufs_state, &moment);
+      ebur128_loudness_shortterm(audioanalysis->lufs_state, &shortt);
 
     /* errors */
-    _set_flags (&audioanalysis->errors,
-                audioanalysis->params_boundary,
-                &audioanalysis->error_state,
-                moment,
-                shortt);
+      _set_flags (&audioanalysis->errors,
+                  audioanalysis->params_boundary,
+                  &audioanalysis->error_state,
+                  moment,
+                  shortt);
     
-    /* 100ms */
-    audioanalysis->time_now += 100000;
+      data_ctx_add_point (&audioanalysis->errors,
+                          SHORTT,
+                          shortt,
+                          (audioanalysis->time_now
+                           + (100 * GST_MSECOND * evaluation_counter)));
 
-    data_ctx_add_point (&audioanalysis->errors, SHORTT, shortt, audioanalysis->time_now);
-    data_ctx_add_point (&audioanalysis->errors, MOMENT, moment, audioanalysis->time_now);
+      data_ctx_add_point (&audioanalysis->errors,
+                          MOMENT,
+                          moment,
+                          (audioanalysis->time_now
+                           + (100 * GST_MSECOND * evaluation_counter)));
                 
-    audioanalysis->time_eval = current_time;
-  }
-  
-  gst_buffer_unmap(buf, &map);
+    }
 
+ exit:
   return GST_FLOW_OK;
 }
 
+static void
+gst_audioanalysis_timeout_loop (GstAudioAnalysis * audioanalysis)
+{
+  gint countdown = audioanalysis->timeout;
+  static gboolean stream_is_lost = FALSE; /* TODO maybe this should be true */
+  
+  while (countdown--)
+    {
+      /* In case we need kill the task */
+      if (G_UNLIKELY (! atomic_load (&audioanalysis->task_should_run)))
+        return;
+
+      if (G_LIKELY (atomic_load (&audioanalysis->got_frame)))
+        {
+          atomic_store (&audioanalysis->got_frame, FALSE);
+          countdown = audioanalysis->timeout;
+          
+          if (stream_is_lost)
+            {
+              stream_is_lost = FALSE;
+              g_signal_emit(audioanalysis, signals[STREAM_FOUND_SIGNAL], 0);
+            }
+        }
+
+      sleep (1);
+    }
+
+  /* No frame appeared before countdown exp */
+  if ( !stream_is_lost )
+    {
+      stream_is_lost = TRUE;
+      g_signal_emit(audioanalysis, signals[STREAM_LOST_SIGNAL], 0);
+    }
+}
+
+static gboolean
+plugin_init (GstPlugin * plugin)
+{
+
+  /* FIXME Remember to set the rank if it's an element that is meant
+     to be autoplugged by decodebin. */
+  return gst_element_register (plugin,
+                               "audioanalysis",
+                               GST_RANK_NONE,
+                               GST_TYPE_AUDIOANALYSIS);
+}
+
+/*
 static gboolean
 gst_filter_sink_ad_event (GstBaseTransform * base,
 			  GstEvent * event)
@@ -739,7 +737,7 @@ gst_filter_sink_ad_event (GstBaseTransform * base,
       }
     }
   }
-  /* pass event on */
+  / pass event on /
   if (event)
     return GST_BASE_TRANSFORM_CLASS
       (gst_audioanalysis_parent_class)->sink_event (base, event);
@@ -747,48 +745,57 @@ gst_filter_sink_ad_event (GstBaseTransform * base,
     return TRUE;  
 }
 
-static void
-gst_audioanalysis_timeout (GstAudioAnalysis * aa)
-{
-  GstClockTime time, timeout_last_clock;
-        
-  sleep(1);
-  if (aa->task_counter <= aa->timeout) {
-    aa->task_counter += 1;
-    return;
-  } else {
-    aa->task_counter = 0;
-  }
-        
-  time = gst_clock_get_time (gst_element_get_clock(GST_ELEMENT(aa)));
-  timeout_last_clock = atomic_load(&aa->timeout_last_clock);
-
-  if (G_UNLIKELY ((time - timeout_last_clock) > aa->timeout_clock)) {
-
-    if (! aa->timeout_expired ) {
-      aa->timeout_expired = TRUE;
-      g_signal_emit(aa, signals[STREAM_LOST_SIGNAL], 0);
-    }
-                
-  } else {
-    if ( aa->timeout_expired ) {
-      aa->timeout_expired = FALSE;
-      g_signal_emit(aa, signals[STREAM_FOUND_SIGNAL], 0);
-    }
-  }
-}
-
-static gboolean
-plugin_init (GstPlugin * plugin)
+static inline void
+gst_audioanalysis_eval_global (GstBaseTransform * trans,
+			       guint ad_flag)
 {
 
-  /* FIXME Remember to set the rank if it's an element that is meant
-     to be autoplugged by decodebin. */
-  return gst_element_register (plugin,
-                               "audioanalysis",
-                               GST_RANK_NONE,
-                               GST_TYPE_AUDIOANALYSIS);
+    GstAudioAnalysis *audioanalysis;
+    double           result, diff_time;
+    time_t           now;
+    gchar            string[50];
+
+    audioanalysis = GST_AUDIOANALYSIS (trans);
+    now = time(NULL);
+
+    // if measurements have already begun
+    if (audioanalysis->glob_ad_flag) {
+
+    ebur128_loudness_global(audioanalysis->glob_state, &result);
+    ebur128_clear_block_list(audioanalysis->glob_state);
+
+    diff_time = difftime(audioanalysis->glob_start, now);
+
+    g_snprintf(string, 39, "c%d:%d:%d:*:%.2f:%.2f:%d",
+    audioanalysis->stream_id,
+    audioanalysis->program,
+    audioanalysis->pid,
+    result, diff_time, ad_flag);
+
+    gst_audioanalysis_send_string(string, audioanalysis);
+    } else {
+    audioanalysis->glob_ad_flag = TRUE;
+    }
+
+    audioanalysis->glob_start = now;
+
 }
+*/
+
+
+  /* add frames to an ad state */
+  /* if (audioanalysis->glob_ad_flag) {
+
+     now = time(NULL);
+
+     ebur128_add_frames_short(audioanalysis->glob_state, (short*)map.data, num_frames);
+
+     // interval exceeded specified timeout
+     if (DIFF(now, audioanalysis->glob_start) >= audioanalysis->ad_timeout) {
+     ebur128_clear_block_list(audioanalysis->glob_state);
+     audioanalysis->glob_ad_flag = FALSE;
+     }
+     }*/
 
 /* FIXME: these are normally defined by the GStreamer build system.
    If you are creating an element to be included in gst-plugins-*,

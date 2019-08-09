@@ -1,6 +1,6 @@
 CC = gcc
 
-CFLAGS = -Wall -O3 -std=gnu99 -fPIC -c -march=native -g
+CFLAGS = -Wall -O3 -std=gnu11 -fPIC -c -march=native -g
 CFLAGS += `pkg-config --cflags gstreamer-1.0 gstreamer-audio-1.0`
 
 LDFLAGS = -shared -lm
