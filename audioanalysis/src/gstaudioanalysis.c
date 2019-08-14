@@ -440,8 +440,8 @@ gst_audioanalysis_change_state (GstElement * element,
     /* Initialize task and clocks */
   case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
     {
-      audioanalysis->time_now = g_get_real_time ();
-      update_all_timestamps (&audioanalysis->error_state, audioanalysis->time_now);
+      audioanalysis->time_now_us = g_get_real_time ();
+      update_all_timestamps (&audioanalysis->error_state, audioanalysis->time_now_us);
       for (int i = 0; i < PARAM_NUMBER; i++)
         audioanalysis->error_state.cont_err_duration[i] = 0.;
       
@@ -594,9 +594,10 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
     {
       double moment, shortt;
 
-      audioanalysis->time_now +=
-        90 * GST_MSECOND
-        + (audioanalysis->next_evaluation_ts - GST_BUFFER_TIMESTAMP (buf));
+      audioanalysis->time_now_us +=
+        GST_TIME_AS_USECONDS(90 * GST_MSECOND
+                             + (audioanalysis->next_evaluation_ts
+                                - GST_BUFFER_TIMESTAMP (buf)));
 
       /* Update clock */
       audioanalysis->next_evaluation_ts =
@@ -621,12 +622,12 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
       data_ctx_add_point (&audioanalysis->errors,
                           SHORTT,
                           shortt,
-                          audioanalysis->time_now);
+                          audioanalysis->time_now_us);
 
       data_ctx_add_point (&audioanalysis->errors,
                           MOMENT,
                           moment,
-                          audioanalysis->time_now);
+                          audioanalysis->time_now_us);
                 
     }
   
@@ -638,7 +639,7 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
     {
       size_t data_size;
       
-      audioanalysis->time_now = g_get_real_time ();
+      audioanalysis->time_now_us = g_get_real_time ();
 
       /* Update clock */
       audioanalysis->next_data_message_ts =
@@ -646,7 +647,7 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
       
       _update_flags_and_timestamps (&audioanalysis->errors,
                                     &audioanalysis->error_state,
-                                    audioanalysis->time_now);
+                                    audioanalysis->time_now_us);
                 
       gpointer d = data_ctx_pull_out_data (&audioanalysis->errors, &data_size);
 

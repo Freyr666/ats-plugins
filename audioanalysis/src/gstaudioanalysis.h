@@ -63,7 +63,7 @@ struct _GstAudioAnalysis
   GstTask *       timeout_task;
 
   /* Loudness evaluation */
-  gint64          time_now;
+  gint64          time_now_us;
   struct state    error_state;
   struct data_ctx errors;
   GstClockTime    next_evaluation_ts;
