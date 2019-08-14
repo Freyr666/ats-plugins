@@ -613,8 +613,8 @@ gst_videoanalysis_change_state (GstElement * element,
     /* Initialize task and clocks */
   case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
     {
-      videoanalysis->time_now = g_get_real_time ();
-      update_all_timestamps (&videoanalysis->error_state, videoanalysis->time_now);
+      videoanalysis->time_now_us = g_get_real_time ();
+      update_all_timestamps (&videoanalysis->error_state, videoanalysis->time_now_us);
       for (int i = 0; i < PARAM_NUMBER; i++)
         videoanalysis->error_state.cont_err_duration[i] = 0.;
       
@@ -721,8 +721,8 @@ gst_videoanalysis_set_caps (GstBaseTransform * trans,
   videoanalysis->frame_duration_double =
     (double) videoanalysis->in_info.fps_d / (double) videoanalysis->in_info.fps_n;
 
-  videoanalysis->frame_duration =
-    gst_util_uint64_scale (GST_SECOND,
+  videoanalysis->frame_duration_us =
+    gst_util_uint64_scale (GST_TIME_AS_USECONDS(GST_SECOND),
                            videoanalysis->in_info.fps_d,
                            videoanalysis->in_info.fps_n);
 
@@ -875,7 +875,7 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
   //          values[BLOCKY], values[LUMA], values[BLACK], values[DIFF], values[FREEZE]);
   //g_print ("Frame: %d Limit: %d\n", videoanalysis->frame, videoanalysis->frame_limit);
 
-  videoanalysis->time_now += videoanalysis->frame_duration;
+  videoanalysis->time_now_us += videoanalysis->frame_duration_us;
 
   /* errors */
   _set_flags (&videoanalysis->errors,
@@ -888,7 +888,7 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
     data_ctx_add_point (&videoanalysis->errors,
                         p,
                         values[p],
-                        videoanalysis->time_now);
+                        videoanalysis->time_now_us);
 
   /* Send data message if needed */
   if (GST_BUFFER_TIMESTAMP (buf)
@@ -896,7 +896,7 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
     {
       size_t data_size;
       
-      videoanalysis->time_now = g_get_real_time ();
+      videoanalysis->time_now_us = g_get_real_time ();
       
       /* Update clock */
       videoanalysis->next_data_message_ts =
@@ -904,7 +904,7 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
 
       _update_flags_and_timestamps (&videoanalysis->errors,
                                     &videoanalysis->error_state,
-                                    videoanalysis->time_now);
+                                    videoanalysis->time_now_us);
 
       gpointer d = data_ctx_pull_out_data (&videoanalysis->errors, &data_size);
       

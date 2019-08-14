@@ -67,11 +67,11 @@ struct _GstVideoAnalysis
   GstVideoInfo       out_info;
 
   /* Video params evaluation */
-  gint64             time_now;
+  gint64             time_now_us;
   struct state       error_state;
   struct data_ctx    errors;
   GstClockTime       next_data_message_ts;
-  GstClockTime       frame_duration;
+  gint64             frame_duration_us;
   double             frame_duration_double;
   guint64            frames_prealloc_per_s;
   
