@@ -37,10 +37,7 @@
 
 #include "gldrawing.h"
 
-
 G_BEGIN_DECLS
-
-
 
 #define GST_TYPE_GLSOUNDBAR \
   (gst_glsoundbar_get_type())
@@ -52,9 +49,6 @@ G_BEGIN_DECLS
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_GLSOUNDBAR))
 #define GST_IS_GLSOUNDBAR_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_GLSOUNDBAR))
-
-
-
 
 typedef struct _GstGLSoundbar      GstGLSoundbar;
 typedef struct _GstGLSoundbarClass GstGLSoundbarClass;
@@ -100,7 +94,6 @@ struct _GstGLSoundbar
   unsigned int bg_color;
 
   loudness result;
-
 
   GstBuffer *prev_push_outbuf;
 

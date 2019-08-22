@@ -1,0 +1,3 @@
+[submodule "render/nuklear"]
+	path = render/nuklear
+	url = https://github.com/IvanFedotovIvanFedotov/nuklear.git
