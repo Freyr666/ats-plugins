@@ -1029,6 +1029,12 @@ videoanalysis_apply (GstVideoAnalysis * va, GstGLMemory * tex)
 {
   GstGLContext *context = GST_GL_BASE_FILTER (va)->context;
 
+  if (G_UNLIKELY(va->shader == NULL))
+    {
+      GST_WARNING("GL shader is not ready for analysis");
+      return TRUE;
+    }
+
   /* Ensure that GL platform defaults meet the expectations */
   if (G_UNLIKELY(va->gl_settings_unchecked))
     {
