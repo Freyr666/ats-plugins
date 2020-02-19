@@ -383,6 +383,9 @@ gst_videoanalysis_dispose(GObject *object)
   data_ctx_delete (&videoanalysis->errors);
 
   //gst_object_unref (videoanalysis->timeout_task);
+  gst_object_unref (videoanalysis->tex);
+  gst_object_unref (videoanalysis->prev_tex);
+  gst_object_unref (videoanalysis->prev_buffer);
   gst_object_unref (videoanalysis->shader);
   gst_object_unref (videoanalysis->shader_block);
   
@@ -660,7 +663,7 @@ _find_local_gl_context (GstGLBaseFilter * filter)
 static void
 shader_create (GstGLContext * context, GstVideoAnalysis * va)
 {
-  GError * error;
+  GError * error = NULL;
   if (!(va->shader =
         gst_gl_shader_new_link_with_stages(context,
                                            &error,
