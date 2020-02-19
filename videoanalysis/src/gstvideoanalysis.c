@@ -77,7 +77,7 @@ static GstFlowReturn gst_videoanalysis_transform_ip (GstBaseTransform * filter,
 
 static gboolean videoanalysis_apply (GstVideoAnalysis * va, GstGLMemory * mem);
 
-static void gst_videoanalysis_timeout_loop (GstVideoAnalysis * va);
+//static void gst_videoanalysis_timeout_loop (GstVideoAnalysis * va);
 
 //static gboolean gst_gl_base_filter_find_gl_context (GstGLBaseFilter * filter);
 
@@ -363,12 +363,12 @@ gst_videoanalysis_init (GstVideoAnalysis *videoanalysis)
 
   data_ctx_init (&videoanalysis->errors);
 
-  g_rec_mutex_init (&videoanalysis->task_lock);
-  videoanalysis->timeout_task =
-    gst_task_new ((GstTaskFunction)gst_videoanalysis_timeout_loop,
-                  videoanalysis,
-                  NULL);
-  gst_task_set_lock (videoanalysis->timeout_task, &videoanalysis->task_lock);
+  /* g_rec_mutex_init (&videoanalysis->task_lock); */
+  /* videoanalysis->timeout_task = */
+  /*   gst_task_new ((GstTaskFunction)gst_videoanalysis_timeout_loop, */
+  /*                 videoanalysis, */
+  /*                 NULL); */
+  /* gst_task_set_lock (videoanalysis->timeout_task, &videoanalysis->task_lock); */
 }
 
 static void
@@ -382,7 +382,7 @@ gst_videoanalysis_finalize(GObject *object)
 
   data_ctx_delete (&videoanalysis->errors);
 
-  gst_object_unref (videoanalysis->timeout_task);
+  //gst_object_unref (videoanalysis->timeout_task);
   gst_object_unref (videoanalysis->shader);
   gst_object_unref (videoanalysis->shader_block);
   
@@ -619,10 +619,10 @@ gst_videoanalysis_change_state (GstElement * element,
         videoanalysis->error_state.cont_err_duration[i] = 0.;
       
       videoanalysis->next_data_message_ts = 0;
-      atomic_store(&videoanalysis->got_frame, FALSE);
-      atomic_store(&videoanalysis->task_should_run, TRUE);
+      /* atomic_store(&videoanalysis->got_frame, FALSE); */
+      /* atomic_store(&videoanalysis->task_should_run, TRUE); */
 
-      gst_task_start (videoanalysis->timeout_task);
+      /* gst_task_start (videoanalysis->timeout_task); */
     }
     break;
   case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
@@ -631,9 +631,9 @@ gst_videoanalysis_change_state (GstElement * element,
       gst_buffer_replace(&videoanalysis->prev_buffer, NULL);
       videoanalysis->prev_tex = NULL;
       
-      atomic_store(&videoanalysis->task_should_run, FALSE);
+      /* atomic_store(&videoanalysis->task_should_run, FALSE); */
       
-      gst_task_join (videoanalysis->timeout_task);
+      /* gst_task_join (videoanalysis->timeout_task); */
     }
     break;
   default:
@@ -850,7 +850,7 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
     }
 
   /* Frame is fine, so inform the timeout_loop task */
-  atomic_store(&videoanalysis->got_frame, TRUE);
+  //atomic_store(&videoanalysis->got_frame, TRUE);
 
   /* Evaluate the intermidiate parameters via shader */
   videoanalysis_apply (videoanalysis, GST_GL_MEMORY_CAST (tex));
@@ -1059,40 +1059,40 @@ videoanalysis_apply (GstVideoAnalysis * va, GstGLMemory * tex)
   return TRUE;
 }
 
-static void
-gst_videoanalysis_timeout_loop (GstVideoAnalysis * videoanalysis)
-{
-  gint countdown = videoanalysis->timeout;
-  static gboolean stream_is_lost = FALSE; /* TODO maybe this should be true */
+/* static void */
+/* gst_videoanalysis_timeout_loop (GstVideoAnalysis * videoanalysis) */
+/* { */
+/*   gint countdown = videoanalysis->timeout; */
+/*   static gboolean stream_is_lost = FALSE; /\* TODO maybe this should be true *\/ */
   
-  while (countdown--)
-    {
-      /* In case we need kill the task */
-      if (G_UNLIKELY (! atomic_load (&videoanalysis->task_should_run)))
-        return;
+/*   while (countdown--) */
+/*     { */
+/*       /\* In case we need kill the task *\/ */
+/*       if (G_UNLIKELY (! atomic_load (&videoanalysis->task_should_run))) */
+/*         return; */
 
-      if (G_LIKELY (atomic_load (&videoanalysis->got_frame)))
-        {
-          atomic_store (&videoanalysis->got_frame, FALSE);
-          countdown = videoanalysis->timeout;
+/*       if (G_LIKELY (atomic_load (&videoanalysis->got_frame))) */
+/*         { */
+/*           atomic_store (&videoanalysis->got_frame, FALSE); */
+/*           countdown = videoanalysis->timeout; */
           
-          if (stream_is_lost)
-            {
-              stream_is_lost = FALSE;
-              g_signal_emit(videoanalysis, signals[STREAM_FOUND_SIGNAL], 0);
-            }
-        }
+/*           if (stream_is_lost) */
+/*             { */
+/*               stream_is_lost = FALSE; */
+/*               g_signal_emit(videoanalysis, signals[STREAM_FOUND_SIGNAL], 0); */
+/*             } */
+/*         } */
 
-      sleep (1);
-    }
+/*       sleep (1); */
+/*     } */
 
-  /* No frame appeared before countdown exp */
-  if ( !stream_is_lost )
-    {
-      stream_is_lost = TRUE;
-      g_signal_emit(videoanalysis, signals[STREAM_LOST_SIGNAL], 0);
-    }
-}
+/*   /\* No frame appeared before countdown exp *\/ */
+/*   if ( !stream_is_lost ) */
+/*     { */
+/*       stream_is_lost = TRUE; */
+/*       g_signal_emit(videoanalysis, signals[STREAM_LOST_SIGNAL], 0); */
+/*     } */
+/* } */
    
 static gboolean
 plugin_init (GstPlugin * plugin)

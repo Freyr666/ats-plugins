@@ -80,7 +80,7 @@ static gboolean gst_audioanalysis_setup (GstAudioFilter * filter,
 static GstFlowReturn gst_audioanalysis_transform_ip (GstBaseTransform * trans,
                                                      GstBuffer * buf);
 
-static void gst_audioanalysis_timeout_loop (GstAudioAnalysis * audioanalysis);
+/* static void gst_audioanalysis_timeout_loop (GstAudioAnalysis * audioanalysis); */
 
 /* signals */
 enum
@@ -289,11 +289,11 @@ gst_audioanalysis_init (GstAudioAnalysis *audioanalysis)
   /* init in (setup) */
   audioanalysis->lufs_state = NULL;
   
-  audioanalysis->timeout_task = gst_task_new ((GstTaskFunction) gst_audioanalysis_timeout_loop,
-                                              audioanalysis,
-                                              NULL);
-  g_rec_mutex_init (&audioanalysis->task_lock);
-  gst_task_set_lock (audioanalysis->timeout_task, &audioanalysis->task_lock);
+/*   audioanalysis->timeout_task = gst_task_new ((GstTaskFunction) gst_audioanalysis_timeout_loop, */
+/*                                               audioanalysis, */
+/*                                               NULL); */
+/*   g_rec_mutex_init (&audioanalysis->task_lock); */
+/*   gst_task_set_lock (audioanalysis->timeout_task, &audioanalysis->task_lock); */
 }
 
 void
@@ -308,7 +308,7 @@ gst_audioanalysis_finalize (GObject * object)
 
   data_ctx_delete (&audioanalysis->errors);
 
-  gst_object_unref (audioanalysis->timeout_task);
+  //gst_object_unref (audioanalysis->timeout_task);
   //g_rec_mutex_clear (&audioanalysis->task_lock);
 
   G_OBJECT_CLASS (gst_audioanalysis_parent_class)->finalize (object);
@@ -448,17 +448,17 @@ gst_audioanalysis_change_state (GstElement * element,
       audioanalysis->next_evaluation_ts = 0;
       audioanalysis->next_data_message_ts = 0;
 
-      atomic_store(&audioanalysis->got_frame, FALSE);
-      atomic_store(&audioanalysis->task_should_run, TRUE);
+      /* atomic_store(&audioanalysis->got_frame, FALSE); */
+      /* atomic_store(&audioanalysis->task_should_run, TRUE); */
       
-      gst_task_start (audioanalysis->timeout_task);
+      /* gst_task_start (audioanalysis->timeout_task); */
     }
     break;
   case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
     {
-      atomic_store(&audioanalysis->task_should_run, FALSE);
+      /* atomic_store(&audioanalysis->task_should_run, FALSE); */
       
-      gst_task_join (audioanalysis->timeout_task);
+      /* gst_task_join (audioanalysis->timeout_task); */
     }
     break;
   default:
@@ -607,7 +607,7 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
        * We are doing it once in 100ms instead of each
        * sample for the sake of performance
        */
-      atomic_store(&audioanalysis->got_frame, TRUE);
+      //atomic_store(&audioanalysis->got_frame, TRUE);
     
       ebur128_loudness_momentary(audioanalysis->lufs_state, &moment);
       ebur128_loudness_shortterm(audioanalysis->lufs_state, &shortt);
@@ -662,40 +662,40 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans,
   return GST_FLOW_OK;
 }
 
-static void
-gst_audioanalysis_timeout_loop (GstAudioAnalysis * audioanalysis)
-{
-  gint countdown = audioanalysis->timeout;
-  static gboolean stream_is_lost = FALSE; /* TODO maybe this should be true */
+/* static void */
+/* gst_audioanalysis_timeout_loop (GstAudioAnalysis * audioanalysis) */
+/* { */
+/*   gint countdown = audioanalysis->timeout; */
+/*   static gboolean stream_is_lost = FALSE; /\* TODO maybe this should be true *\/ */
   
-  while (countdown--)
-    {
-      /* In case we need kill the task */
-      if (G_UNLIKELY (! atomic_load (&audioanalysis->task_should_run)))
-        return;
+/*   while (countdown--) */
+/*     { */
+/*       /\* In case we need kill the task *\/ */
+/*       if (G_UNLIKELY (! atomic_load (&audioanalysis->task_should_run))) */
+/*         return; */
 
-      if (G_LIKELY (atomic_load (&audioanalysis->got_frame)))
-        {
-          atomic_store (&audioanalysis->got_frame, FALSE);
-          countdown = audioanalysis->timeout;
+/*       if (G_LIKELY (atomic_load (&audioanalysis->got_frame))) */
+/*         { */
+/*           atomic_store (&audioanalysis->got_frame, FALSE); */
+/*           countdown = audioanalysis->timeout; */
           
-          if (stream_is_lost)
-            {
-              stream_is_lost = FALSE;
-              g_signal_emit(audioanalysis, signals[STREAM_FOUND_SIGNAL], 0);
-            }
-        }
+/*           if (stream_is_lost) */
+/*             { */
+/*               stream_is_lost = FALSE; */
+/*               g_signal_emit(audioanalysis, signals[STREAM_FOUND_SIGNAL], 0); */
+/*             } */
+/*         } */
 
-      sleep (1);
-    }
+/*       sleep (1); */
+/*     } */
 
-  /* No frame appeared before countdown exp */
-  if ( !stream_is_lost )
-    {
-      stream_is_lost = TRUE;
-      g_signal_emit(audioanalysis, signals[STREAM_LOST_SIGNAL], 0);
-    }
-}
+/*   /\* No frame appeared before countdown exp *\/ */
+/*   if ( !stream_is_lost ) */
+/*     { */
+/*       stream_is_lost = TRUE; */
+/*       g_signal_emit(audioanalysis, signals[STREAM_LOST_SIGNAL], 0); */
+/*     } */
+/* } */
 
 static gboolean
 plugin_init (GstPlugin * plugin)
