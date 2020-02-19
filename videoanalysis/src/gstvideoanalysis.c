@@ -63,7 +63,7 @@ static void gst_videoanalysis_get_property (GObject * object,
                                             GValue * value,
                                             GParamSpec * pspec);
 
-static void gst_videoanalysis_finalize (GObject *object);
+static void gst_videoanalysis_dispose (GObject *object);
 
 static GstStateChangeReturn gst_videoanalysis_change_state (GstElement * element,
                                                             GstStateChange transition);
@@ -171,7 +171,7 @@ gst_videoanalysis_class_init (GstVideoAnalysisClass * klass)
 
   gobject_class->set_property = gst_videoanalysis_set_property;
   gobject_class->get_property = gst_videoanalysis_get_property;
-  gobject_class->finalize     = gst_videoanalysis_finalize;
+  gobject_class->dispose      = gst_videoanalysis_dispose;
 
   element_class->change_state = gst_videoanalysis_change_state;
   
@@ -372,7 +372,7 @@ gst_videoanalysis_init (GstVideoAnalysis *videoanalysis)
 }
 
 static void
-gst_videoanalysis_finalize(GObject *object)
+gst_videoanalysis_dispose(GObject *object)
 {
   GstGLContext *context = GST_GL_BASE_FILTER (object)->context;
   GstVideoAnalysis *videoanalysis = GST_VIDEOANALYSIS (object);
@@ -386,7 +386,7 @@ gst_videoanalysis_finalize(GObject *object)
   gst_object_unref (videoanalysis->shader);
   gst_object_unref (videoanalysis->shader_block);
   
-  G_OBJECT_CLASS (parent_class)->finalize(object);
+  G_OBJECT_CLASS (parent_class)->dispose(object);
 }
 
 static void
