@@ -179,7 +179,7 @@ gst_videoanalysis_class_init (GstVideoAnalysisClass * klass)
   //base_transform_class->transform_ip_on_passthrough = TRUE;
   base_transform_class->transform_ip = gst_videoanalysis_transform_ip;
   base_transform_class->set_caps = gst_videoanalysis_set_caps;
-  base_filter->supported_gl_api = GST_GL_API_OPENGL3;
+  base_filter->supported_gl_api = GST_GL_API_GLES2;
 
   signals[DATA_SIGNAL] =
     g_signal_new("data", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
