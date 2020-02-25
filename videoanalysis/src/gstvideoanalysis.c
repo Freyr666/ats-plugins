@@ -661,6 +661,8 @@ gst_videoanalysis_stop (GstBaseTransform * trans)
   
   if (context)
     gst_object_unref(context);
+
+  GST_GL_BASE_FILTER (trans)->context = NULL;
 }
 
 static gboolean
