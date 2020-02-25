@@ -381,8 +381,8 @@ gst_videoanalysis_dispose(GObject *object)
   GST_DEBUG_OBJECT(object, "context refcounter prior to unref: %d",
       GST_OBJECT_REFCOUNT_VALUE(context));
   
-  if (context)
-    gst_object_unref(context);
+  //if (context)
+  //  gst_object_unref(context);
 
   data_ctx_delete (&videoanalysis->errors);
 
@@ -637,8 +637,8 @@ gst_videoanalysis_change_state (GstElement * element,
       videoanalysis->tex = NULL;
       gst_buffer_replace(&videoanalysis->prev_buffer, NULL);
       videoanalysis->prev_tex = NULL;
-      gst_buffer_replace(&videoanalysis->shader, NULL);
-      gst_buffer_replace(&videoanalysis->shader_block, NULL);
+      //gst_buffer_replace(&videoanalysis->shader, NULL);
+      //gst_buffer_replace(&videoanalysis->shader_block, NULL);
       
       /* atomic_store(&videoanalysis->task_should_run, FALSE); */
       
