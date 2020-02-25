@@ -378,8 +378,8 @@ gst_videoanalysis_dispose(GObject *object)
   GstVideoAnalysis *videoanalysis = GST_VIDEOANALYSIS (object);
 
   GST_DEBUG_OBJECT (object, "disposing");
-  GST_DEBUG_OBJECT(object, "context refcounter prior to unref: %d",
-      GST_OBJECT_REFCOUNT_VALUE(context));
+  //GST_DEBUG_OBJECT(object, "context refcounter prior to unref: %d",
+  //    GST_OBJECT_REFCOUNT_VALUE(context));
   
   //if (context)
   //  gst_object_unref(context);
