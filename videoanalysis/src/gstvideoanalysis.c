@@ -927,11 +927,11 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
       gst_buffer_unref (data);
     }
 
-  gst_video_frame_unmap (&gl_frame);
-        
   /* Cleanup */
   gst_buffer_replace (&videoanalysis->prev_buffer, buf);
   gst_buffer_unref (buf);
+
+  gst_video_frame_unmap (&gl_frame);
 
   return GST_FLOW_OK;
                 
