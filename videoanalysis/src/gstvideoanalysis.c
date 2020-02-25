@@ -179,7 +179,7 @@ gst_videoanalysis_class_init (GstVideoAnalysisClass * klass)
   //base_transform_class->transform_ip_on_passthrough = TRUE;
   base_transform_class->transform_ip = gst_videoanalysis_transform_ip;
   base_transform_class->set_caps = gst_videoanalysis_set_caps;
-  base_filter->supported_gl_api = GST_GL_API_GLES2;
+  base_filter->supported_gl_api = GST_GL_API_OPENGL3;
 
   signals[DATA_SIGNAL] =
     g_signal_new("data", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
@@ -376,6 +376,10 @@ gst_videoanalysis_dispose(GObject *object)
 {
   GstGLContext *context = GST_GL_BASE_FILTER (object)->context;
   GstVideoAnalysis *videoanalysis = GST_VIDEOANALYSIS (object);
+
+  GST_DEBUG_OBJECT (object, "disposing");
+  GST_DEBUG_OBJECT(object, "context refcounter prior to unref: %d",
+      GST_OBJECT_REFCOUNT_VALUE(context));
   
   if (context)
     gst_object_unref(context);
@@ -633,6 +637,8 @@ gst_videoanalysis_change_state (GstElement * element,
       videoanalysis->tex = NULL;
       gst_buffer_replace(&videoanalysis->prev_buffer, NULL);
       videoanalysis->prev_tex = NULL;
+      gst_buffer_replace(&videoanalysis->shader, NULL);
+      gst_buffer_replace(&videoanalysis->shader_block, NULL);
       
       /* atomic_store(&videoanalysis->task_should_run, FALSE); */
       
