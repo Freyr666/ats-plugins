@@ -635,7 +635,7 @@ gst_videoanalysis_change_state (GstElement * element,
   case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
     {
       
-      gst_object_replace(&videoanalysis->tex, NULL);
+      //gst_object_replace(&videoanalysis->tex, NULL);
       gst_buffer_replace(&videoanalysis->prev_buffer, NULL);
       gst_object_replace(&videoanalysis->prev_tex, NULL);
       gst_object_replace(&videoanalysis->shader, NULL);
@@ -932,6 +932,7 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
   gst_buffer_replace (&videoanalysis->prev_buffer, buf);
   
   gst_video_frame_unmap (&gl_frame);
+  videoanalysis->tex = NULL;
 
   GST_DEBUG_OBJECT (videoanalysis, "Refs: prev_tex %d",
                     GST_OBJECT_REFCOUNT_VALUE(videoanalysis->prev_tex));
