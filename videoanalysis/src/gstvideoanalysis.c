@@ -634,9 +634,9 @@ gst_videoanalysis_change_state (GstElement * element,
     break;
   case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
     {
-      videoanalysis->tex = NULL;
+      gst_object_replace(&videoanalysis->tex, NULL);
       gst_buffer_replace(&videoanalysis->prev_buffer, NULL);
-      videoanalysis->prev_tex = NULL;
+      gst_object_replace(&videoanalysis->prev_tex, NULL);
       gst_object_replace(&videoanalysis->shader, NULL);
       gst_object_replace(&videoanalysis->shader_block, NULL);
       
@@ -929,13 +929,8 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
 
   /* Cleanup */
   gst_buffer_replace (&videoanalysis->prev_buffer, buf);
-  //gst_buffer_unref (buf);
-  GST_DEBUG_OBJECT (videoanalysis, "buf refcount %d", GST_OBJECT_REFCOUNT_VALUE(buf));
+
   gst_video_frame_unmap (&gl_frame);
-  gst_buffer_unref (buf);
-  GST_DEBUG_OBJECT (videoanalysis, "buf refcount after unmap %d", GST_OBJECT_REFCOUNT_VALUE(buf));
-  GST_DEBUG_OBJECT (videoanalysis, "context refcount after unmap %d",
-                    GST_OBJECT_REFCOUNT_VALUE(GST_GL_BASE_FILTER (trans)->context));
 
   return GST_FLOW_OK;
                 
@@ -1018,7 +1013,7 @@ analyse (GstGLContext *context, GstVideoAnalysis * va)
 
   va->buffer_ptr = MODULUS((va->buffer_ptr+1), va->latency);
         
-  va->prev_tex = va->tex;
+  gst_object_replace(&va->prev_tex, va->tex);
 }
 
 static void
