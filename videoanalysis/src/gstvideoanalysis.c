@@ -931,12 +931,14 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
         
   /* Cleanup */
   gst_buffer_replace (&videoanalysis->prev_buffer, buf);
+  gst_buffer_unref (buf);
 
   return GST_FLOW_OK;
                 
  unmap_error:
   gst_video_frame_unmap (&gl_frame);
  inbuf_error:
+  gst_buffer_unref (buf);
   return GST_FLOW_ERROR;
 }
 
