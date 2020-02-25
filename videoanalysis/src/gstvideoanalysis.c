@@ -936,14 +936,10 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
       gst_buffer_unref (data);
     }
 
-  /* Cleanup */
-  gst_buffer_replace (&videoanalysis->prev_buffer, buf);
-  
+  /* Cleanup */  
   gst_video_frame_unmap (&gl_frame);
+  gst_buffer_replace (&videoanalysis->prev_buffer, buf);
   videoanalysis->tex = NULL;
-
-  GST_DEBUG_OBJECT (videoanalysis, "Refs: prev_tex %d",
-                    GST_MINI_OBJECT_REFCOUNT_VALUE(videoanalysis->prev_tex));
 
   return GST_FLOW_OK;
                 
