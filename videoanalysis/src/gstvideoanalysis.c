@@ -657,7 +657,7 @@ gst_videoanalysis_stop (GstBaseTransform * trans)
 {
   GstGLContext *context = GST_GL_BASE_FILTER (trans)->context;
 
-  GST_DEBUG_OBJECT (object, "stopping");
+  GST_DEBUG_OBJECT (trans, "stopping");
   
   if (context)
     gst_object_unref(context);
