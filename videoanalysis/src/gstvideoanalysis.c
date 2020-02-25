@@ -933,8 +933,7 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
   
   gst_video_frame_unmap (&gl_frame);
 
-  GST_DEBUG_OBJECT (videoanalysis, "Refs: tex %d, prev_tex %d",
-                    GST_OBJECT_REFCOUNT_VALUE(videoanalysis->tex),
+  GST_DEBUG_OBJECT (videoanalysis, "Refs: prev_tex %d",
                     GST_OBJECT_REFCOUNT_VALUE(videoanalysis->prev_tex));
 
   return GST_FLOW_OK;
