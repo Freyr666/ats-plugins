@@ -390,8 +390,8 @@ gst_videoanalysis_dispose(GObject *object)
   gst_object_unref (videoanalysis->tex);
   gst_object_unref (videoanalysis->prev_tex);
   gst_object_unref (videoanalysis->prev_buffer);
-  gst_object_unref (videoanalysis->shader);
-  gst_object_unref (videoanalysis->shader_block);
+  //gst_object_unref (videoanalysis->shader);
+  //gst_object_unref (videoanalysis->shader_block);
   
   G_OBJECT_CLASS (parent_class)->dispose(object);
 }
@@ -637,8 +637,8 @@ gst_videoanalysis_change_state (GstElement * element,
       videoanalysis->tex = NULL;
       gst_buffer_replace(&videoanalysis->prev_buffer, NULL);
       videoanalysis->prev_tex = NULL;
-      //gst_buffer_replace(&videoanalysis->shader, NULL);
-      //gst_buffer_replace(&videoanalysis->shader_block, NULL);
+      gst_object_replace(&videoanalysis->shader, NULL);
+      gst_object_replace(&videoanalysis->shader_block, NULL);
       
       /* atomic_store(&videoanalysis->task_should_run, FALSE); */
       
