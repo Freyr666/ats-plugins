@@ -381,8 +381,8 @@ gst_videoanalysis_dispose(GObject *object)
   //GST_DEBUG_OBJECT(object, "context refcounter prior to unref: %d",
   //    GST_OBJECT_REFCOUNT_VALUE(context));
   
-  //if (context)
-  //  gst_object_unref(context);
+  if (context)
+    gst_object_unref(context);
 
   data_ctx_delete (&videoanalysis->errors);
 
