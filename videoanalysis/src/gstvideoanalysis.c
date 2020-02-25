@@ -932,6 +932,7 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
   //gst_buffer_unref (buf);
   GST_DEBUG_OBJECT (videoanalysis, "buf refcount %d", GST_OBJECT_REFCOUNT_VALUE(buf));
   gst_video_frame_unmap (&gl_frame);
+  gst_buffer_unref (buf);
   GST_DEBUG_OBJECT (videoanalysis, "buf refcount after unmap %d", GST_OBJECT_REFCOUNT_VALUE(buf));
   GST_DEBUG_OBJECT (videoanalysis, "context refcount after unmap %d",
                     GST_OBJECT_REFCOUNT_VALUE(GST_GL_BASE_FILTER (trans)->context));
