@@ -929,9 +929,10 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
 
   /* Cleanup */
   gst_buffer_replace (&videoanalysis->prev_buffer, buf);
-  gst_buffer_unref (buf);
-
+  //gst_buffer_unref (buf);
+  GST_DEBUG_OBJECT (videoanalysis, "buf refcount %d", GST_OBJECT_REFCOUNT_VALUE(buf));
   gst_video_frame_unmap (&gl_frame);
+  GST_DEBUG_OBJECT (videoanalysis, "buf refcount after unmap %d", GST_OBJECT_REFCOUNT_VALUE(buf));
 
   return GST_FLOW_OK;
                 
