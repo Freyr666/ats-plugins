@@ -667,15 +667,34 @@ gst_videoanalysis_stop (GstBaseTransform * trans)
   return TRUE;
 }
 
+static void
+_on_destroy (gpointer data)
+{
+  printf("Context %s is being destroyed\n", (gchar *)data);
+  g_free(data);
+}
+
 static gboolean
 _find_local_gl_context (GstGLBaseFilter * filter)
 {
   if (gst_gl_query_local_gl_context (GST_ELEMENT (filter), GST_PAD_SRC,
                                      &filter->context))
-    return TRUE;
+    {
+      g_object_set_data_full (filter->context,
+                              "on_destroy",
+                              gst_object_get_name(filter->context),
+                              _on_destroy);
+      return TRUE;
+    }
   if (gst_gl_query_local_gl_context (GST_ELEMENT (filter), GST_PAD_SINK,
                                      &filter->context))
-    return TRUE;
+    {
+      g_object_set_data_full (filter->context,
+                              "on_destroy",
+                              gst_object_get_name(filter->context),
+                              _on_destroy);
+      return TRUE;
+    }
   return FALSE;
 }
 
