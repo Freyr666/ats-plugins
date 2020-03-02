@@ -678,6 +678,9 @@ static gboolean
 _find_local_gl_context (GstGLBaseFilter * filter)
 {
   gchar * name;
+
+  if (filter->context)
+    return TRUE;
   
   if (gst_gl_query_local_gl_context (GST_ELEMENT (filter), GST_PAD_SRC,
                                      &filter->context))
@@ -1052,6 +1055,8 @@ analyse (GstGLContext *context, GstVideoAnalysis * va)
   va->buffer_ptr = MODULUS((va->buffer_ptr+1), va->latency);
         
   va->prev_tex = va->tex;
+
+  gst_gl_context_clear_shader (context);
 }
 
 static void
