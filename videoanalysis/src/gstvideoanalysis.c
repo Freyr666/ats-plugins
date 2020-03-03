@@ -177,7 +177,7 @@ gst_videoanalysis_class_init (GstVideoAnalysisClass * klass)
 
   element_class->change_state = gst_videoanalysis_change_state;
   
-  base_transform_class->passthrough_on_same_caps = FALSE;
+  base_transform_class->passthrough_on_same_caps = TRUE;
   //base_transform_class->transform_ip_on_passthrough = TRUE;
   base_transform_class->stop = gst_videoanalysis_stop;
   base_transform_class->transform_ip = gst_videoanalysis_transform_ip;
@@ -656,13 +656,14 @@ static gboolean
 gst_videoanalysis_stop (GstBaseTransform * trans)
 {
   GstGLContext *context = GST_GL_BASE_FILTER (trans)->context;
-
+  GstVideoAnalysis *videoanalysis = GST_VIDEOANALYSIS (trans);
+  
   GST_DEBUG_OBJECT (trans, "stopping");
   
-  if (context)
-    gst_object_unref(context);
-
-  GST_GL_BASE_FILTER (trans)->context = NULL;
+  //gst_object_replace (&GST_GL_BASE_FILTER (trans)->context, NULL);
+  gst_buffer_replace(&videoanalysis->prev_buffer, NULL);
+  gst_object_replace(&videoanalysis->shader, NULL);
+  gst_object_replace(&videoanalysis->shader_block, NULL);
 
   return TRUE;
 }
@@ -678,7 +679,7 @@ static gboolean
 _find_local_gl_context (GstGLBaseFilter * filter)
 {
   gchar * name;
-
+  
   if (filter->context)
     return TRUE;
   
@@ -793,7 +794,7 @@ gst_videoanalysis_set_caps (GstBaseTransform * trans,
     (struct accumulator *) malloc((videoanalysis->in_info.width / 8)
                                   * (videoanalysis->in_info.height / 8)
                                   * sizeof(struct accumulator));
-
+  /*
   if ( (! GST_GL_BASE_FILTER (trans)->context)
        && (! _find_local_gl_context(GST_GL_BASE_FILTER(trans))))
     {
@@ -804,7 +805,7 @@ gst_videoanalysis_set_caps (GstBaseTransform * trans,
   gst_gl_context_thread_add(GST_GL_BASE_FILTER (trans)->context,
                             (GstGLContextThreadFunc) shader_create,
                             videoanalysis);
-        
+  */
   return GST_BASE_TRANSFORM_CLASS(parent_class)->set_caps(trans,incaps,outcaps);
 
   /* ERRORS */
@@ -875,9 +876,29 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans,
   int              height = videoanalysis->in_info.height;
   int              width  = videoanalysis->in_info.width;
   double           values [PARAM_NUMBER] = { 0 };
+  GstGLContext     *context = GST_GL_BASE_FILTER (trans)->context;
+  static gboolean  flag = TRUE;
+  
+  if (context == NULL)
+    {
+      g_print ("gst_videoanalysis_transform_ip: NO CONTEXT YET\n");
+      return GST_FLOW_OK;
+    }
+  else if (flag)
+    {
+      flag = FALSE;
+      g_print ("gst_videoanalysis_transform_ip: Context found\n");
+    }
 
   if (G_UNLIKELY(!gst_pad_is_linked (GST_BASE_TRANSFORM_SRC_PAD(trans))))
     return GST_FLOW_OK;
+
+  if (G_UNLIKELY(videoanalysis->shader == NULL))
+    gst_gl_context_thread_add(GST_GL_BASE_FILTER (trans)->context,
+                              (GstGLContextThreadFunc) shader_create,
+                              videoanalysis);
+
+  //return GST_FLOW_OK;
 
   /* Initialize clocks if needed */
   if (G_UNLIKELY (videoanalysis->next_data_message_ts == 0))
@@ -1022,6 +1043,7 @@ analyse (GstGLContext *context, GstVideoAnalysis * va)
   glDispatchCompute(width / 8, height / 8, 1);
 
   glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+  gst_gl_context_clear_shader (context);
 
   gst_gl_shader_use (va->shader_block);
 
@@ -1032,7 +1054,8 @@ analyse (GstGLContext *context, GstVideoAnalysis * va)
   glDispatchCompute(width / 8, height / 8, 1);
         
   glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-        
+
+  gst_gl_context_clear_shader (context);
   /* Get prev results */
 
   guint prev = MODULUS(((int)va->buffer_ptr - (int)va->latency + 1), (int)va->latency);
@@ -1055,8 +1078,6 @@ analyse (GstGLContext *context, GstVideoAnalysis * va)
   va->buffer_ptr = MODULUS((va->buffer_ptr+1), va->latency);
         
   va->prev_tex = va->tex;
-
-  gst_gl_context_clear_shader (context);
 }
 
 static void
