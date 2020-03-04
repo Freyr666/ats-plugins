@@ -1,5 +1,8 @@
 #include <gst/gst.h>
+
 #include "config.h"
+
+#include "gstaudioanalysis.h"
 
 #define PLUGIN_NAME     "analysis"
 #define PLUGIN_DESC     "Package for picture and sound quality analysis"
@@ -8,7 +11,12 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return TRUE;
+  gboolean ret = TRUE;
+
+  ret &= gst_element_register (plugin,
+      "audioanalysis", GST_RANK_NONE, GST_TYPE_AUDIOANALYSIS);
+
+  return ret;
 }
 
 

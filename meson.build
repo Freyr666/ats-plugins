@@ -44,6 +44,7 @@ gstaudio_dep = dependency('gstreamer-audio-1.0', version : gst_req,
 gstgl_dep = dependency('gstreamer-gl-1.0', version : gst_req,
   fallback : ['gst-plugins-base', 'gstgl_dep'], required: false)
 
+libebur128_dep = dependency('libebur128', required: false)
 libdrm_dep = dependency('libdrm', required: false)
 libudev_dep = dependency('libudev', required: false)
 egl_dep = dependency('egl', required: false)
