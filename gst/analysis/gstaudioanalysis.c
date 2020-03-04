@@ -126,6 +126,26 @@ G_DEFINE_TYPE_WITH_CODE (GstAudioAnalysis,
     GST_DEBUG_CATEGORY_INIT (gst_audioanalysis_debug_category,
         "audioanalysis", 0, "debug category for audioanalysis element"));
 
+static inline void
+update_all_timestamps (struct audio_analysis_state *state, gint64 ts)
+{
+  for (int n = 0; n < AUDIO_PARAM_NUMBER; n++)
+    state->cont_err_past_timestamp[n] = ts;
+}
+
+static inline void
+update_timestamp (struct audio_analysis_state *state, AUDIO_PARAMETER param,
+    gint64 ts)
+{
+  state->cont_err_past_timestamp[param] = ts;
+}
+
+static inline gint64
+get_timestamp (struct audio_analysis_state *state, AUDIO_PARAMETER param)
+{
+  return state->cont_err_past_timestamp[param];
+}
+
 static void
 gst_audioanalysis_class_init (GstAudioAnalysisClass * klass)
 {
@@ -235,7 +255,7 @@ gst_audioanalysis_init (GstAudioAnalysis * audioanalysis)
   audioanalysis->timeout = 10;
 
   /* TODO cleanup this mess */
-  for (int i = 0; i < PARAM_NUMBER; i++) {
+  for (int i = 0; i < AUDIO_PARAM_NUMBER; i++) {
     audioanalysis->params_boundary[i].cont_en = TRUE;
     audioanalysis->params_boundary[i].peak_en = TRUE;
   }
@@ -257,9 +277,9 @@ gst_audioanalysis_init (GstAudioAnalysis * audioanalysis)
   audioanalysis->params_boundary[LOUDNESS_MOMENT].duration = 2.;
 
   /* private */
-  data_ctx_init (&audioanalysis->errors);
+  audio_data_ctx_init (&audioanalysis->errors);
 
-  for (int i = 0; i < PARAM_NUMBER; i++) {
+  for (int i = 0; i < AUDIO_PARAM_NUMBER; i++) {
     audioanalysis->error_state.cont_err_duration[i] = 0.;
   }
 
@@ -283,7 +303,7 @@ gst_audioanalysis_finalize (GObject * object)
   if (audioanalysis->lufs_state != NULL)
     ebur128_destroy (&audioanalysis->lufs_state);
 
-  data_ctx_delete (&audioanalysis->errors);
+  audio_data_ctx_delete (&audioanalysis->errors);
 
   gst_object_unref (audioanalysis->timeout_task);
   //g_rec_mutex_clear (&audioanalysis->task_lock);
@@ -445,7 +465,7 @@ gst_audioanalysis_change_state (GstElement * element, GstStateChange transition)
       audioanalysis->time_now_us = g_get_real_time ();
       update_all_timestamps (&audioanalysis->error_state,
           audioanalysis->time_now_us);
-      for (int i = 0; i < PARAM_NUMBER; i++)
+      for (int i = 0; i < AUDIO_PARAM_NUMBER; i++)
         audioanalysis->error_state.cont_err_duration[i] = 0.;
 
       audioanalysis->next_evaluation_ts = 0;
@@ -491,7 +511,7 @@ gst_audioanalysis_setup (GstAudioFilter * filter, const GstAudioInfo * info)
      EBUR128_MODE_I);
    */
   guint32 per = EVALS_IN_SECOND * audioanalysis->period;
-  data_ctx_reset (&audioanalysis->errors, per);
+  audio_data_ctx_reset (&audioanalysis->errors, per);
 
   return TRUE;
 }
@@ -499,12 +519,12 @@ gst_audioanalysis_setup (GstAudioFilter * filter, const GstAudioInfo * info)
 #define SECOND 1000000
 
 static void
-_update_flags_and_timestamps (struct data_ctx *ctx,
-    struct state *state, gint64 new_ts)
+_update_flags_and_timestamps (struct audio_data_ctx *ctx,
+    struct audio_analysis_state *state, gint64 new_ts)
 {
   struct flag *current_flag;
 
-  for (int p = 0; p < PARAM_NUMBER; p++) {
+  for (int p = 0; p < AUDIO_PARAM_NUMBER; p++) {
     /* Cont flag */
     current_flag = &ctx->errs[p]->cont_flag;
 
@@ -527,12 +547,12 @@ _update_flags_and_timestamps (struct data_ctx *ctx,
 }
 
 static void
-_set_flags (struct data_ctx *ctx,
-    struct boundary bounds[PARAM_NUMBER],
-    struct state *state, double moment, double shortt)
+_set_flags (struct audio_data_ctx *ctx,
+    struct boundary bounds[AUDIO_PARAM_NUMBER],
+    struct audio_analysis_state *state, double moment, double shortt)
 {
-  for (int p = 0; p < PARAM_NUMBER; p++) {
-    data_ctx_flags_cmp (ctx, p, &bounds[p], param_boundary_is_upper (p), &(state->cont_err_duration[p]), 0.1,   /* 100ms */
+  for (int p = 0; p < AUDIO_PARAM_NUMBER; p++) {
+    audio_data_ctx_flags_cmp (ctx, p, &bounds[p], audio_param_boundary_is_upper (p), &(state->cont_err_duration[p]), 0.1,       /* 100ms */
         IS_MOMENT (p) ? moment : shortt);
   }
 }
@@ -600,10 +620,10 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
         audioanalysis->params_boundary,
         &audioanalysis->error_state, moment, shortt);
 
-    data_ctx_add_point (&audioanalysis->errors,
+    audio_data_ctx_add_point (&audioanalysis->errors,
         SHORTT, shortt, audioanalysis->time_now_us);
 
-    data_ctx_add_point (&audioanalysis->errors,
+    audio_data_ctx_add_point (&audioanalysis->errors,
         MOMENT, moment, audioanalysis->time_now_us);
 
   }
@@ -624,9 +644,10 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
     _update_flags_and_timestamps (&audioanalysis->errors,
         &audioanalysis->error_state, audioanalysis->time_now_us);
 
-    gpointer d = data_ctx_pull_out_data (&audioanalysis->errors, &data_size);
+    gpointer d =
+        audio_data_ctx_pull_out_data (&audioanalysis->errors, &data_size);
 
-    data_ctx_reset (&audioanalysis->errors,
+    audio_data_ctx_reset (&audioanalysis->errors,
         EVALS_IN_SECOND * audioanalysis->period);
 
     GstBuffer *data = gst_buffer_new_wrapped (d, data_size);

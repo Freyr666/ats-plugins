@@ -1,7 +1,6 @@
 analysis_sources = [
   'gstanalysis.c',
-  'gstaudioanalysis_priv.h',
-  'gstaudioanalysis.h',
+  'gstvideoanalysis.c',
   'gstaudioanalysis.c',
 ]
 

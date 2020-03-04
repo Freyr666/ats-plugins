@@ -6,14 +6,16 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "common.h"
+
 typedef enum
 {
   SILENCE_SHORTT,
   SILENCE_MOMENT,
   LOUDNESS_SHORTT,
   LOUDNESS_MOMENT,
-  PARAM_NUMBER
-} PARAMETER;
+  AUDIO_PARAM_NUMBER
+} AUDIO_PARAMETER;
 
 #define IS_MOMENT(p) ((p) & 1)
 
@@ -24,44 +26,9 @@ typedef enum
   MEAS_NUMBER,
 } MEASURMENT;
 
-struct boundary
+struct audio_data_ctx
 {
-  gboolean cont_en;
-  gfloat cont;
-  gboolean peak_en;
-  gfloat peak;
-  gfloat duration;
-};
-
-struct point
-{
-  gint64 time;
-  double data;
-};
-
-struct flag
-{
-  gboolean value;
-  gint64 timestamp;
-  gint64 span;
-};
-
-struct flags
-{
-  struct flag cont_flag;
-  struct flag peak_flag;
-};
-
-struct data
-{
-  guint32 length;
-  guint32 meaningful;
-  struct point values[];
-};
-
-struct data_ctx
-{
-  struct flags *errs[PARAM_NUMBER];
+  struct flags *errs[AUDIO_PARAM_NUMBER];
   struct point *current[MEAS_NUMBER];
   guint *point_counter[MEAS_NUMBER];
   guint limit;
@@ -70,7 +37,7 @@ struct data_ctx
 };
 
 static inline const char *
-param_to_string (PARAMETER p)
+audio_param_to_string (AUDIO_PARAMETER p)
 {
   switch (p) {
     case SILENCE_MOMENT:
@@ -88,7 +55,7 @@ param_to_string (PARAMETER p)
 }
 
 static inline gboolean
-param_boundary_is_upper (PARAMETER p)
+audio_param_boundary_is_upper (AUDIO_PARAMETER p)
 {
   switch (p) {
     case SILENCE_MOMENT:
@@ -102,13 +69,13 @@ param_boundary_is_upper (PARAMETER p)
 }
 
 static inline void
-data_ctx_init (struct data_ctx *ctx)
+audio_data_ctx_init (struct audio_data_ctx *ctx)
 {
   ctx->ptr = NULL;
 }
 
 static inline void
-data_ctx_reset (struct data_ctx *ctx, guint32 length)
+audio_data_ctx_reset (struct audio_data_ctx *ctx, guint32 length)
 {
   void *data_ptr;
 
@@ -117,14 +84,14 @@ data_ctx_reset (struct data_ctx *ctx, guint32 length)
 
   ctx->limit = length;
 
-  ctx->ptr = malloc (sizeof (struct flags) * PARAM_NUMBER
+  ctx->ptr = malloc (sizeof (struct flags) * AUDIO_PARAM_NUMBER
       + (sizeof (struct data) + length * sizeof (struct point)) * MEAS_NUMBER);
 
-  for (int i = 0; i < PARAM_NUMBER; i++) {
+  for (int i = 0; i < AUDIO_PARAM_NUMBER; i++) {
     ctx->errs[i] = ctx->ptr + i * sizeof (struct flags);
   }
 
-  data_ptr = ctx->ptr + PARAM_NUMBER * sizeof (struct flags);
+  data_ptr = ctx->ptr + AUDIO_PARAM_NUMBER * sizeof (struct flags);
 
   for (int i = 0; i < MEAS_NUMBER; i++) {
     ctx->current[i] = ((struct data *) data_ptr)->values;
@@ -136,7 +103,7 @@ data_ctx_reset (struct data_ctx *ctx, guint32 length)
 }
 
 static inline void
-data_ctx_delete (struct data_ctx *ctx)
+audio_data_ctx_delete (struct audio_data_ctx *ctx)
 {
   if (ctx->ptr != NULL)
     free (ctx->ptr);
@@ -145,7 +112,8 @@ data_ctx_delete (struct data_ctx *ctx)
 }
 
 static inline void
-data_ctx_add_point (struct data_ctx *ctx, MEASURMENT meas, double v, gint64 t)
+audio_data_ctx_add_point (struct audio_data_ctx *ctx, MEASURMENT meas, double v,
+    gint64 t)
 {
   assert (ctx->ptr != NULL);
 
@@ -160,7 +128,7 @@ data_ctx_add_point (struct data_ctx *ctx, MEASURMENT meas, double v, gint64 t)
 
 /* invalidates the internal pointer */
 static inline void *
-data_ctx_pull_out_data (struct data_ctx *ctx, size_t *size)
+audio_data_ctx_pull_out_data (struct audio_data_ctx *ctx, size_t *size)
 {
   size_t sz = 0;
   void *data = ctx->ptr;
@@ -168,7 +136,7 @@ data_ctx_pull_out_data (struct data_ctx *ctx, size_t *size)
   assert (ctx->ptr != NULL);
 
   {
-    sz += sizeof (struct flags) * PARAM_NUMBER;
+    sz += sizeof (struct flags) * AUDIO_PARAM_NUMBER;
 
     /* Assume all measurments are of the same size */
     sz +=
@@ -184,7 +152,7 @@ data_ctx_pull_out_data (struct data_ctx *ctx, size_t *size)
 }
 
 static inline void
-data_ctx_flags_cmp (struct data_ctx *ctx, PARAMETER param,
+audio_data_ctx_flags_cmp (struct audio_data_ctx *ctx, AUDIO_PARAMETER param,
     struct boundary *bounds, gboolean upper,
     float *dur, float dur_d, double val)
 {

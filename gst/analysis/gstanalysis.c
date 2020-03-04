@@ -2,6 +2,7 @@
 
 #include "config.h"
 
+#include "gstvideoanalysis.h"
 #include "gstaudioanalysis.h"
 
 #define PLUGIN_NAME     "analysis"
@@ -12,6 +13,9 @@ static gboolean
 plugin_init (GstPlugin * plugin)
 {
   gboolean ret = TRUE;
+
+  ret &= gst_element_register (plugin,
+      "videoanalysis", GST_RANK_NONE, GST_TYPE_VIDEOANALYSIS);
 
   ret &= gst_element_register (plugin,
       "audioanalysis", GST_RANK_NONE, GST_TYPE_AUDIOANALYSIS);

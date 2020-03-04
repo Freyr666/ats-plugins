@@ -45,10 +45,10 @@ G_BEGIN_DECLS
 typedef struct _GstAudioAnalysis GstAudioAnalysis;
 typedef struct _GstAudioAnalysisClass GstAudioAnalysisClass;
 
-struct state
+struct audio_analysis_state
 {
-  gfloat cont_err_duration[PARAM_NUMBER];
-  gint64 cont_err_past_timestamp[PARAM_NUMBER];
+  gfloat cont_err_duration[AUDIO_PARAM_NUMBER];
+  gint64 cont_err_past_timestamp[AUDIO_PARAM_NUMBER];
 };
 
 struct _GstAudioAnalysis
@@ -64,8 +64,8 @@ struct _GstAudioAnalysis
 
   /* Loudness evaluation */
   gint64 time_now_us;
-  struct state error_state;
-  struct data_ctx errors;
+  struct audio_analysis_state error_state;
+  struct audio_data_ctx errors;
   GstClockTime next_evaluation_ts;
   GstClockTime next_data_message_ts;
 
@@ -79,7 +79,7 @@ struct _GstAudioAnalysis
   /* Parameters */
   guint period;                 /* Seconds between data_signal events */
   guint timeout;                /* Seconds before stream_lost_signal */
-  struct boundary params_boundary[PARAM_NUMBER];        /* Boundary values fo error detection */
+  struct boundary params_boundary[AUDIO_PARAM_NUMBER];  /* Boundary values fo error detection */
   /* float    loss;
    * gfloat   adv_diff;
    * gint     adv_buf;
@@ -97,25 +97,6 @@ struct _GstAudioAnalysisClass
 };
 
 GType gst_audioanalysis_get_type (void);
-
-static inline void
-update_all_timestamps (struct state *state, gint64 ts)
-{
-  for (int n = 0; n < PARAM_NUMBER; n++)
-    state->cont_err_past_timestamp[n] = ts;
-}
-
-static inline void
-update_timestamp (struct state *state, PARAMETER param, gint64 ts)
-{
-  state->cont_err_past_timestamp[param] = ts;
-}
-
-static inline gint64
-get_timestamp (struct state *state, PARAMETER param)
-{
-  return state->cont_err_past_timestamp[param];
-}
 
 G_END_DECLS
 #endif
