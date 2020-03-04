@@ -1,10 +1,10 @@
 analysis_sources = [
-  'gstanalysis.c',
+  'gstatsanalysis.c',
   'gstvideoanalysis.c',
   'gstaudioanalysis.c',
 ]
 
-gstanalysis = library('gstanalysis',
+gstanalysis = library('gstatsanalysis',
   analysis_sources,
   c_args : gstreamer_ats_args + ['-DGST_USE_UNSTABLE_API'],
   include_directories : [configinc],
