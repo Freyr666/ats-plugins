@@ -53,10 +53,11 @@ static void gst_audioanalysis_set_property (GObject * object,
 static void gst_audioanalysis_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
 
-static void gst_audioanalysis_finalize (GObject * object);
+static void gst_audioanalysis_dispose (GObject * object);
 
-static GstStateChangeReturn gst_audioanalysis_change_state (GstElement *
-    element, GstStateChange transition);
+static gboolean gst_audioanalysis_start (GstBaseTransform * trans);
+
+static gboolean gst_audioanalysis_stop (GstBaseTransform * trans);
 
 static gboolean gst_audioanalysis_setup (GstAudioFilter * filter,
     const GstAudioInfo * info);
@@ -64,7 +65,9 @@ static gboolean gst_audioanalysis_setup (GstAudioFilter * filter,
 static GstFlowReturn gst_audioanalysis_transform_ip (GstBaseTransform * trans,
     GstBuffer * buf);
 
+/*
 static void gst_audioanalysis_timeout_loop (GstAudioAnalysis * audioanalysis);
+*/
 
 /* signals */
 enum
@@ -150,7 +153,6 @@ static void
 gst_audioanalysis_class_init (GstAudioAnalysisClass * klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
-  GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
   GstBaseTransformClass *base_transform_class =
       GST_BASE_TRANSFORM_CLASS (klass);
   GstAudioFilterClass *audio_filter_class = GST_AUDIO_FILTER_CLASS (klass);
@@ -169,11 +171,14 @@ gst_audioanalysis_class_init (GstAudioAnalysisClass * klass)
 
   gobject_class->set_property = gst_audioanalysis_set_property;
   gobject_class->get_property = gst_audioanalysis_get_property;
-  gobject_class->finalize = gst_audioanalysis_finalize;
-  element_class->change_state = gst_audioanalysis_change_state;
+  gobject_class->dispose = gst_audioanalysis_dispose;
+
   audio_filter_class->setup = GST_DEBUG_FUNCPTR (gst_audioanalysis_setup);
+
   base_transform_class->transform_ip =
       GST_DEBUG_FUNCPTR (gst_audioanalysis_transform_ip);
+  base_transform_class->start = gst_audioanalysis_start;
+  base_transform_class->stop = gst_audioanalysis_stop;
 
   signals[DATA_SIGNAL] =
       g_signal_new ("data", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
@@ -286,15 +291,17 @@ gst_audioanalysis_init (GstAudioAnalysis * audioanalysis)
   /* init in (setup) */
   audioanalysis->lufs_state = NULL;
 
-  audioanalysis->timeout_task =
-      gst_task_new ((GstTaskFunction) gst_audioanalysis_timeout_loop,
-      audioanalysis, NULL);
-  g_rec_mutex_init (&audioanalysis->task_lock);
-  gst_task_set_lock (audioanalysis->timeout_task, &audioanalysis->task_lock);
+  /*
+     audioanalysis->timeout_task =
+     gst_task_new ((GstTaskFunction) gst_audioanalysis_timeout_loop,
+     audioanalysis, NULL);
+     g_rec_mutex_init (&audioanalysis->task_lock);
+     gst_task_set_lock (audioanalysis->timeout_task, &audioanalysis->task_lock);
+   */
 }
 
 void
-gst_audioanalysis_finalize (GObject * object)
+gst_audioanalysis_dispose (GObject * object)
 {
   GstAudioAnalysis *audioanalysis = GST_AUDIOANALYSIS (object);
 
@@ -305,10 +312,10 @@ gst_audioanalysis_finalize (GObject * object)
 
   audio_data_ctx_delete (&audioanalysis->errors);
 
-  gst_object_unref (audioanalysis->timeout_task);
+  //gst_object_unref (audioanalysis->timeout_task);
   //g_rec_mutex_clear (&audioanalysis->task_lock);
 
-  G_OBJECT_CLASS (gst_audioanalysis_parent_class)->finalize (object);
+  G_OBJECT_CLASS (gst_audioanalysis_parent_class)->dispose (object);
 }
 
 void
@@ -453,44 +460,38 @@ gst_audioanalysis_get_property (GObject * object,
   }
 }
 
-static GstStateChangeReturn
-gst_audioanalysis_change_state (GstElement * element, GstStateChange transition)
+static gboolean
+gst_audioanalysis_start (GstBaseTransform * trans)
 {
-  GstAudioAnalysis *audioanalysis = GST_AUDIOANALYSIS (element);
+  GstAudioAnalysis *audioanalysis = GST_AUDIOANALYSIS (trans);
 
-  switch (transition) {
-      /* Initialize task and clocks */
-    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-    {
-      audioanalysis->time_now_us = g_get_real_time ();
-      update_all_timestamps (&audioanalysis->error_state,
-          audioanalysis->time_now_us);
-      for (int i = 0; i < AUDIO_PARAM_NUMBER; i++)
-        audioanalysis->error_state.cont_err_duration[i] = 0.;
+  audioanalysis->time_now_us = g_get_real_time ();
+  update_all_timestamps (&audioanalysis->error_state,
+      audioanalysis->time_now_us);
+  for (int i = 0; i < AUDIO_PARAM_NUMBER; i++)
+    audioanalysis->error_state.cont_err_duration[i] = 0.;
 
-      audioanalysis->next_evaluation_ts = 0;
-      audioanalysis->next_data_message_ts = 0;
+  audioanalysis->next_evaluation_ts = 0;
+  audioanalysis->next_data_message_ts = 0;
 
-      atomic_store (&audioanalysis->got_frame, FALSE);
-      atomic_store (&audioanalysis->task_should_run, TRUE);
+  //atomic_store (&audioanalysis->got_frame, FALSE);
+  //atomic_store (&audioanalysis->task_should_run, TRUE);
 
-      gst_task_start (audioanalysis->timeout_task);
-    }
-      break;
-    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-    {
-      atomic_store (&audioanalysis->task_should_run, FALSE);
+  //gst_task_start (audioanalysis->timeout_task);
 
-      gst_task_join (audioanalysis->timeout_task);
-    }
-      break;
-    default:
-      break;
-  }
+  return GST_BASE_TRANSFORM_CLASS (parent_class)->start (trans);
+}
 
-  return
-      GST_ELEMENT_CLASS (gst_audioanalysis_parent_class)->change_state (element,
-      transition);
+static gboolean
+gst_audioanalysis_stop (GstBaseTransform * trans)
+{
+  //GstAudioAnalysis *audioanalysis = GST_AUDIOANALYSIS (trans);
+
+  //atomic_store (&audioanalysis->task_should_run, FALSE);
+
+  //gst_task_join (audioanalysis->timeout_task);
+
+  return GST_BASE_TRANSFORM_CLASS (parent_class)->stop (trans);
 }
 
 static gboolean
@@ -659,36 +660,36 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
   return GST_FLOW_OK;
 }
 
-static void
-gst_audioanalysis_timeout_loop (GstAudioAnalysis * audioanalysis)
-{
-  gint countdown = audioanalysis->timeout;
-  static gboolean stream_is_lost = FALSE;       /* TODO maybe this should be true */
+/* static void */
+/* gst_audioanalysis_timeout_loop (GstAudioAnalysis * audioanalysis) */
+/* { */
+/*   gint countdown = audioanalysis->timeout; */
+/*   static gboolean stream_is_lost = FALSE;       /\* TODO maybe this should be true *\/ */
 
-  while (countdown--) {
-    /* In case we need kill the task */
-    if (G_UNLIKELY (!atomic_load (&audioanalysis->task_should_run)))
-      return;
+/*   while (countdown--) { */
+/*     /\* In case we need kill the task *\/ */
+/*     if (G_UNLIKELY (!atomic_load (&audioanalysis->task_should_run))) */
+/*       return; */
 
-    if (G_LIKELY (atomic_load (&audioanalysis->got_frame))) {
-      atomic_store (&audioanalysis->got_frame, FALSE);
-      countdown = audioanalysis->timeout;
+/*     if (G_LIKELY (atomic_load (&audioanalysis->got_frame))) { */
+/*       atomic_store (&audioanalysis->got_frame, FALSE); */
+/*       countdown = audioanalysis->timeout; */
 
-      if (stream_is_lost) {
-        stream_is_lost = FALSE;
-        g_signal_emit (audioanalysis, signals[STREAM_FOUND_SIGNAL], 0);
-      }
-    }
+/*       if (stream_is_lost) { */
+/*         stream_is_lost = FALSE; */
+/*         g_signal_emit (audioanalysis, signals[STREAM_FOUND_SIGNAL], 0); */
+/*       } */
+/*     } */
 
-    sleep (1);
-  }
+/*     sleep (1); */
+/*   } */
 
-  /* No frame appeared before countdown exp */
-  if (!stream_is_lost) {
-    stream_is_lost = TRUE;
-    g_signal_emit (audioanalysis, signals[STREAM_LOST_SIGNAL], 0);
-  }
-}
+/*   /\* No frame appeared before countdown exp *\/ */
+/*   if (!stream_is_lost) { */
+/*     stream_is_lost = TRUE; */
+/*     g_signal_emit (audioanalysis, signals[STREAM_LOST_SIGNAL], 0); */
+/*   } */
+/* } */
 
 /*
 static gboolean

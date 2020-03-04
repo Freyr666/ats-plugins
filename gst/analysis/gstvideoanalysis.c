@@ -51,10 +51,11 @@ static void gst_videoanalysis_set_property (GObject * object,
 static void gst_videoanalysis_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
 
-static void gst_videoanalysis_finalize (GObject * object);
+static void gst_videoanalysis_dispose (GObject * object);
 
-static GstStateChangeReturn gst_videoanalysis_change_state (GstElement *
-    element, GstStateChange transition);
+static gboolean gst_videoanalysis_start (GstBaseTransform * trans);
+
+static gboolean gst_videoanalysis_stop (GstBaseTransform * trans);
 
 static gboolean gst_videoanalysis_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps);
@@ -64,8 +65,9 @@ static GstFlowReturn gst_videoanalysis_transform_ip (GstBaseTransform * filter,
 
 static gboolean videoanalysis_apply (GstVideoAnalysis * va, GstGLMemory * mem);
 
+/*
 static void gst_videoanalysis_timeout_loop (GstVideoAnalysis * va);
-
+*/
 //static gboolean gst_gl_base_filter_find_gl_context (GstGLBaseFilter * filter);
 
 /* signals */
@@ -173,13 +175,13 @@ gst_videoanalysis_class_init (GstVideoAnalysisClass * klass)
 
   gobject_class->set_property = gst_videoanalysis_set_property;
   gobject_class->get_property = gst_videoanalysis_get_property;
-  gobject_class->finalize = gst_videoanalysis_finalize;
+  gobject_class->dispose = gst_videoanalysis_dispose;
 
-  element_class->change_state = gst_videoanalysis_change_state;
-
-  base_transform_class->passthrough_on_same_caps = FALSE;
-  //base_transform_class->transform_ip_on_passthrough = TRUE;
+  base_transform_class->passthrough_on_same_caps = TRUE;
+  base_transform_class->transform_ip_on_passthrough = TRUE;
   base_transform_class->transform_ip = gst_videoanalysis_transform_ip;
+  base_transform_class->start = gst_videoanalysis_start;
+  base_transform_class->stop = gst_videoanalysis_stop;
   base_transform_class->set_caps = gst_videoanalysis_set_caps;
   base_filter->supported_gl_api = GST_GL_API_OPENGL3;
 
@@ -346,30 +348,28 @@ gst_videoanalysis_init (GstVideoAnalysis * videoanalysis)
   }
 
   video_data_ctx_init (&videoanalysis->errors);
-
-  g_rec_mutex_init (&videoanalysis->task_lock);
-  videoanalysis->timeout_task =
-      gst_task_new ((GstTaskFunction) gst_videoanalysis_timeout_loop,
-      videoanalysis, NULL);
-  gst_task_set_lock (videoanalysis->timeout_task, &videoanalysis->task_lock);
+  /*
+     g_rec_mutex_init (&videoanalysis->task_lock);
+     videoanalysis->timeout_task =
+     gst_task_new ((GstTaskFunction) gst_videoanalysis_timeout_loop,
+     videoanalysis, NULL);
+     gst_task_set_lock (videoanalysis->timeout_task, &videoanalysis->task_lock);
+   */
 }
 
 static void
-gst_videoanalysis_finalize (GObject * object)
+gst_videoanalysis_dispose (GObject * object)
 {
-  GstGLContext *context = GST_GL_BASE_FILTER (object)->context;
   GstVideoAnalysis *videoanalysis = GST_VIDEOANALYSIS (object);
-
-  if (context)
-    gst_object_unref (context);
 
   video_data_ctx_delete (&videoanalysis->errors);
 
-  gst_object_unref (videoanalysis->timeout_task);
-  gst_object_unref (videoanalysis->shader);
-  gst_object_unref (videoanalysis->shader_block);
+  //gst_object_unref (videoanalysis->timeout_task);
+  gst_object_replace (&videoanalysis->shader, NULL);
+  gst_object_replace (&videoanalysis->shader_block, NULL);
+  gst_buffer_replace (&videoanalysis->prev_buffer, NULL);
 
-  G_OBJECT_CLASS (parent_class)->finalize (object);
+  G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
 static void
@@ -601,60 +601,6 @@ gst_videoanalysis_get_property (GObject * object,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
   }
-}
-
-static GstStateChangeReturn
-gst_videoanalysis_change_state (GstElement * element, GstStateChange transition)
-{
-  GstVideoAnalysis *videoanalysis = GST_VIDEOANALYSIS (element);
-
-  switch (transition) {
-      /* Initialize task and clocks */
-    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-    {
-      videoanalysis->time_now_us = g_get_real_time ();
-      update_all_timestamps (&videoanalysis->error_state,
-          videoanalysis->time_now_us);
-      for (int i = 0; i < VIDEO_PARAM_NUMBER; i++)
-        videoanalysis->error_state.cont_err_duration[i] = 0.;
-
-      videoanalysis->next_data_message_ts = 0;
-      atomic_store (&videoanalysis->got_frame, FALSE);
-      atomic_store (&videoanalysis->task_should_run, TRUE);
-
-      gst_task_start (videoanalysis->timeout_task);
-    }
-      break;
-    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-    {
-      videoanalysis->tex = NULL;
-      gst_buffer_replace (&videoanalysis->prev_buffer, NULL);
-      videoanalysis->prev_tex = NULL;
-
-      atomic_store (&videoanalysis->task_should_run, FALSE);
-
-      gst_task_join (videoanalysis->timeout_task);
-    }
-      break;
-    default:
-      break;
-  }
-
-  return
-      GST_ELEMENT_CLASS (gst_videoanalysis_parent_class)->change_state (element,
-      transition);
-}
-
-static gboolean
-_find_local_gl_context (GstGLBaseFilter * filter)
-{
-  if (gst_gl_query_local_gl_context (GST_ELEMENT (filter), GST_PAD_SRC,
-          &filter->context))
-    return TRUE;
-  if (gst_gl_query_local_gl_context (GST_ELEMENT (filter), GST_PAD_SINK,
-          &filter->context))
-    return TRUE;
-  return FALSE;
 }
 
 struct accumulator
@@ -948,6 +894,45 @@ shader_create (GstGLContext * context, GstVideoAnalysis * va)
 }
 
 static gboolean
+gst_videoanalysis_start (GstBaseTransform * trans)
+{
+  GstVideoAnalysis *videoanalysis = GST_VIDEOANALYSIS (trans);
+
+  videoanalysis->time_now_us = g_get_real_time ();
+  update_all_timestamps (&videoanalysis->error_state,
+      videoanalysis->time_now_us);
+  for (int i = 0; i < VIDEO_PARAM_NUMBER; i++)
+    videoanalysis->error_state.cont_err_duration[i] = 0.;
+
+  videoanalysis->next_data_message_ts = 0;
+  //atomic_store (&videoanalysis->got_frame, FALSE);
+  //atomic_store (&videoanalysis->task_should_run, TRUE);
+
+  //gst_task_start (videoanalysis->timeout_task);
+
+  return GST_BASE_TRANSFORM_CLASS (parent_class)->start (trans);
+}
+
+static gboolean
+gst_videoanalysis_stop (GstBaseTransform * trans)
+{
+  GstVideoAnalysis *videoanalysis = GST_VIDEOANALYSIS (trans);
+
+  videoanalysis->tex = NULL;
+  videoanalysis->prev_tex = NULL;
+
+  gst_buffer_replace (&videoanalysis->prev_buffer, NULL);
+  gst_object_replace (&videoanalysis->shader, NULL);
+  gst_object_replace (&videoanalysis->shader_block, NULL);
+
+  //atomic_store (&videoanalysis->task_should_run, FALSE);
+
+  //gst_task_join (videoanalysis->timeout_task);
+
+  return GST_BASE_TRANSFORM_CLASS (parent_class)->stop (trans);
+}
+
+static gboolean
 gst_videoanalysis_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps)
 {
@@ -981,15 +966,6 @@ gst_videoanalysis_set_caps (GstBaseTransform * trans,
       (struct accumulator *) malloc ((videoanalysis->in_info.width / 8)
       * (videoanalysis->in_info.height / 8)
       * sizeof (struct accumulator));
-
-  if ((!GST_GL_BASE_FILTER (trans)->context)
-      && (!_find_local_gl_context (GST_GL_BASE_FILTER (trans)))) {
-    GST_WARNING ("Could not find a context");
-    return FALSE;
-  }
-
-  gst_gl_context_thread_add (GST_GL_BASE_FILTER (trans)->context,
-      (GstGLContextThreadFunc) shader_create, videoanalysis);
 
   return GST_BASE_TRANSFORM_CLASS (parent_class)->set_caps (trans, incaps,
       outcaps);
@@ -1055,6 +1031,10 @@ gst_videoanalysis_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
 
   if (G_UNLIKELY (!gst_pad_is_linked (GST_BASE_TRANSFORM_SRC_PAD (trans))))
     return GST_FLOW_OK;
+
+  if (G_UNLIKELY (videoanalysis->shader == NULL))
+    gst_gl_context_thread_add (GST_GL_BASE_FILTER (trans)->context,
+        (GstGLContextThreadFunc) shader_create, videoanalysis);
 
   /* Initialize clocks if needed */
   if (G_UNLIKELY (videoanalysis->next_data_message_ts == 0))
@@ -1277,33 +1257,33 @@ videoanalysis_apply (GstVideoAnalysis * va, GstGLMemory * tex)
   return TRUE;
 }
 
-static void
-gst_videoanalysis_timeout_loop (GstVideoAnalysis * videoanalysis)
-{
-  gint countdown = videoanalysis->timeout;
-  static gboolean stream_is_lost = FALSE;       /* TODO maybe this should be true */
+/* static void */
+/* gst_videoanalysis_timeout_loop (GstVideoAnalysis * videoanalysis) */
+/* { */
+/*   gint countdown = videoanalysis->timeout; */
+/*   static gboolean stream_is_lost = FALSE;       /\* TODO maybe this should be true *\/ */
 
-  while (countdown--) {
-    /* In case we need kill the task */
-    if (G_UNLIKELY (!atomic_load (&videoanalysis->task_should_run)))
-      return;
+/*   while (countdown--) { */
+/*     /\* In case we need kill the task *\/ */
+/*     if (G_UNLIKELY (!atomic_load (&videoanalysis->task_should_run))) */
+/*       return; */
 
-    if (G_LIKELY (atomic_load (&videoanalysis->got_frame))) {
-      atomic_store (&videoanalysis->got_frame, FALSE);
-      countdown = videoanalysis->timeout;
+/*     if (G_LIKELY (atomic_load (&videoanalysis->got_frame))) { */
+/*       atomic_store (&videoanalysis->got_frame, FALSE); */
+/*       countdown = videoanalysis->timeout; */
 
-      if (stream_is_lost) {
-        stream_is_lost = FALSE;
-        g_signal_emit (videoanalysis, signals[STREAM_FOUND_SIGNAL], 0);
-      }
-    }
+/*       if (stream_is_lost) { */
+/*         stream_is_lost = FALSE; */
+/*         g_signal_emit (videoanalysis, signals[STREAM_FOUND_SIGNAL], 0); */
+/*       } */
+/*     } */
 
-    sleep (1);
-  }
+/*     sleep (1); */
+/*   } */
 
-  /* No frame appeared before countdown exp */
-  if (!stream_is_lost) {
-    stream_is_lost = TRUE;
-    g_signal_emit (videoanalysis, signals[STREAM_LOST_SIGNAL], 0);
-  }
-}
+/*   /\* No frame appeared before countdown exp *\/ */
+/*   if (!stream_is_lost) { */
+/*     stream_is_lost = TRUE; */
+/*     g_signal_emit (videoanalysis, signals[STREAM_LOST_SIGNAL], 0); */
+/*   } */
+/* } */
