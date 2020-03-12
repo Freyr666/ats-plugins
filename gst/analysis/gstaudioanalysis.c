@@ -479,7 +479,7 @@ gst_audioanalysis_start (GstBaseTransform * trans)
 
   //gst_task_start (audioanalysis->timeout_task);
 
-  return GST_BASE_TRANSFORM_CLASS (parent_class)->start (trans);
+  return TRUE;//GST_BASE_TRANSFORM_CLASS (parent_class)->start (trans);
 }
 
 static gboolean
@@ -491,7 +491,7 @@ gst_audioanalysis_stop (GstBaseTransform * trans)
 
   //gst_task_join (audioanalysis->timeout_task);
 
-  return GST_BASE_TRANSFORM_CLASS (parent_class)->stop (trans);
+  return TRUE;//GST_BASE_TRANSFORM_CLASS (parent_class)->stop (trans);
 }
 
 static gboolean
