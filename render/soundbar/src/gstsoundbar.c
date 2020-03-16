@@ -123,7 +123,7 @@ gst_soundbar_setup (GstAudioVisualizer * bscope) {
         return TRUE;
 }
 
-static gdouble peaks[MAX_CHANNEL_N] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+ static gdouble peaks[MAX_CHANNEL_N] = {0.0}; 
 
 static gboolean
 gst_soundbar_render (GstAudioVisualizer * base, GstBuffer * audio,
