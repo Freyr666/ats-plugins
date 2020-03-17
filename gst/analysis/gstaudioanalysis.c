@@ -599,12 +599,9 @@ gst_audioanalysis_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
       >= audioanalysis->next_evaluation_ts) {
     double moment, shortt;
 
-    /*
     audioanalysis->time_now_us +=
         GST_TIME_AS_USECONDS (90 * GST_MSECOND
         + (audioanalysis->next_evaluation_ts - GST_BUFFER_TIMESTAMP (buf)));
-    */
-    audioanalysis->time_now_us = g_get_real_time ();
     
     /* Update clock */
     audioanalysis->next_evaluation_ts =
