@@ -38,7 +38,6 @@
 #include "gldrawing.h"
 
 G_BEGIN_DECLS
-
 #define GST_TYPE_GLSOUNDBAR \
   (gst_glsoundbar_get_type())
 #define GST_GLSOUNDBAR(obj) \
@@ -49,16 +48,15 @@ G_BEGIN_DECLS
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_GLSOUNDBAR))
 #define GST_IS_GLSOUNDBAR_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_GLSOUNDBAR))
-
-typedef struct _GstGLSoundbar      GstGLSoundbar;
+typedef struct _GstGLSoundbar GstGLSoundbar;
 typedef struct _GstGLSoundbarClass GstGLSoundbarClass;
 typedef struct _GstGLSoundbarPrivate GstGLSoundbarPrivate;
 
-enum {
+enum
+{
 
- GLSOUND_BAR_DRAW_DIRECTION_TO_UP=0,
- GLSOUND_BAR_DRAW_DIRECTION_TO_RIGHT
-
+  GLSOUND_BAR_DRAW_DIRECTION_TO_UP = 0,
+  GLSOUND_BAR_DRAW_DIRECTION_TO_RIGHT
 };
 
 struct _GstGLSoundbar
@@ -83,7 +81,7 @@ struct _GstGLSoundbar
   int display_refs;
 
   /* base offset */
-  GstClockTime running_time;            /* total running time */
+  GstClockTime running_time;    /* total running time */
   long long n_frames;
 
   GlDrawing gl_drawing;
@@ -110,5 +108,4 @@ struct _GstGLSoundbarClass
 GType gst_glsoundbar_get_type (void);
 
 G_END_DECLS
-
 #endif /* __GST_GLSOUNDBAR_H__ */

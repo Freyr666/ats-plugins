@@ -33,7 +33,8 @@
 #define MAX_CHANNELS 64
 #define MAX_CHANNELS_AS_STR "64"
 
-typedef struct {
+typedef struct
+{
 
   int channels;
   int rate;
@@ -42,7 +43,7 @@ typedef struct {
   float loud_average_db[MAX_CHANNELS];
   float loud_peak_db[MAX_CHANNELS];
 
-}loudness;
+} loudness;
 
 //2 переменные должны быть оодинаковыми
 #define AUDIO_LEVELS_NUM (5)
@@ -55,7 +56,7 @@ typedef struct {
 typedef struct
 {
   gfloat X, Y, Z, W;
-}XYZW;
+} XYZW;
 
 /* *INDENT-OFF* */
 static const GLfloat positions[] = {
@@ -68,19 +69,23 @@ static const GLfloat positions[] = {
 static const GLushort indices_quad[] = { 0, 1, 2, 0, 2, 3 };
 /* *INDENT-ON* */
 
-typedef struct{
-  int x1,y1,x2,y2;
-}RECT_INT;
+typedef struct
+{
+  int x1, y1, x2, y2;
+} RECT_INT;
 
-typedef struct{
-  float x1,y1,x2,y2;
-}RECT_FLOAT;
+typedef struct
+{
+  float x1, y1, x2, y2;
+} RECT_FLOAT;
 
-typedef struct{
-  float R,G,B,A;
-}COLOR_COMPONENTS;
+typedef struct
+{
+  float R, G, B, A;
+} COLOR_COMPONENTS;
 
-typedef struct{
+typedef struct
+{
 
   GstGLShader *shader;
   unsigned int vao;
@@ -116,26 +121,22 @@ typedef struct{
 
   COLOR_COMPONENTS bg_color;
 
-  float audio_levels_in_pixels[AUDIO_LEVELS_NUM+1];
+  float audio_levels_in_pixels[AUDIO_LEVELS_NUM + 1];
 
 
-}GlDrawing;
+} GlDrawing;
 
-void gldraw_first_init(GlDrawing *src);
+void gldraw_first_init (GlDrawing * src);
 
-void setBGColor(GlDrawing *src, unsigned int color);
+void setBGColor (GlDrawing * src, unsigned int color);
 
-gboolean gldraw_init (GstGLContext * context, GlDrawing *src, loudness *audio_proceess_result,
-                      int width, int height,
-                      int direction,
-                      float bg_color_r,
-                      float bg_color_g,
-                      float bg_color_b,
-                      float bg_color_a);
+gboolean gldraw_init (GstGLContext * context, GlDrawing * src,
+    loudness * audio_proceess_result, int width, int height, int direction,
+    float bg_color_r, float bg_color_g, float bg_color_b, float bg_color_a);
 
-gboolean gldraw_render(GstGLContext * context, GlDrawing *src, loudness *audio_proceess_result);
-void gldraw_close (GstGLContext * context, GlDrawing *src, loudness *audio_proceess_result);
+gboolean gldraw_render (GstGLContext * context, GlDrawing * src,
+    loudness * audio_proceess_result);
+void gldraw_close (GstGLContext * context, GlDrawing * src,
+    loudness * audio_proceess_result);
 
 #endif //__GLDRAWING_H__
-
-
